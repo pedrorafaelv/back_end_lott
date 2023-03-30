@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Migrations\Migration;
 
 class AddColumnsToUsersTable extends Migration
 {
@@ -25,6 +25,10 @@ class AddColumnsToUsersTable extends Migration
                 $table->string('state')->nullable();
                 $table->string('city')->nullable();
                 $table->string('address')->nullable();
+                $table->string('firebase_localId')->nullable();
+                $table->string('firebase_token')->nullable();
+                $table->timestamp('firebase_last_connection')->nullable();
+
             });
         });
     }
@@ -47,6 +51,10 @@ class AddColumnsToUsersTable extends Migration
             $table->dropColumn('state'); 
             $table->dropColumn('city'); 
             $table->dropColumn('address');
+            $table->dropColumn('firebase_localId');
+            $table->dropColumn('firebase_token');
+            $table->dropColumn('firebase_last_connection');
+
         });
     }
 }

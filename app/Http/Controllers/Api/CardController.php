@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\card;
+use App\Models\Raffle;
+use DB;
 use Illuminate\Http\Request;
 use App\Models\Ficha;
 
@@ -109,22 +111,40 @@ class CardController extends Controller
         //
     }
 
-    public function getCards(Card $card){
+    public function getAvailableCards(Request $request){
 
-        $cards= Card::get();
-        $i =0;
-        // foreach ($cards as $key => $card) {
-        //     $result[$i] = $card;
-        //     $i++;
-        // }
-        dd($cards);
-         $resp= array(
-             'date'=> date("Y-m-d H:i:s"),
-             'card'=>$cards,
-             'group'=> 1             
-         );
-        return response()->Json($resp);
+         $AvailableCards = DB::table('cards')
+         ->whereNotIn('id', DB::table('card_raffle')
+         ->where ('card_raffle.raffle_id', '=', $request->raffle_id)
+         ->select('card_raffle.card_id') )
+         ->select('*')
+         ->get();
+         if (count($AvailableCards)>0){
+             return response()->Json(['message'=> 'Available cards' ,'Card'=>$AvailableCards], 200);
+         }else{
+            return response()->json(['message'=> 'Not cards available'], 401);
+         }
+
      }
+    
+     public function getAvailableCardsByGroup(Request $request){
+
+        $AvailableCards = DB::table('cards')
+        ->whereNotIn('id', DB::table('card_raffle')
+        ->where ('card_raffle.raffle_id',"=", DB::table('raffles')
+                                         ->where('raffles.group_id', '=', $request->group_id )
+                                         ->whereNull('raffles.end_date')
+                                         ->select('raffles.id'))
+        ->select('card_raffle.card_id') )
+        ->select('*')
+        ->get();
+        if (count($AvailableCards)>0){
+            return response()->Json(['message'=> 'Available cards' ,'Card'=>$AvailableCards], 200);
+        }else{
+           return response()->json(['message'=> 'Not cards available'], 401);
+        }
+
+    }
 
     public function fillCard(Request $request){
         $card= new card();

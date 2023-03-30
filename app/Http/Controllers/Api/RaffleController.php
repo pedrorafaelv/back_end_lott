@@ -36,6 +36,7 @@ class RaffleController extends Controller
     public function store(Request $request)
     {
         $open_raffle= Raffle::where('group_id', $request->group_id)->whereNull('end_date')->get();
+
         if (count($open_raffle)==0){
 
             $raffle = new Raffle();
@@ -71,14 +72,14 @@ class RaffleController extends Controller
             $raffle->scheduled_hour = $request->scheduled_hour;
             $raffle->time_zone = $request->time_zone; 
             $res = $raffle->save();
-            $res = "";
+           // $res = "";
             if ($res){
                 return response()->json($raffle, 200);
             }else{
-                return response()->json(['message' => 'Error to create Raffle', 'group_id'=>$request->group_id], 500);
+                return response()->json(['message' => 'Error to create Raffle', 'group_id'=>$request->group_id], 401);
             }
         }
-        return response()->json(['message' => 'Error to create Raffle, Raffle(s) in progress', 'open_raffle'=>$open_raffle,'group_id'=>$request->group_id], 500);
+        return response()->json(['message' => 'Error to create Raffle, Raffle(s) in progress', 'open_raffle'=>$open_raffle,'group_id'=>$request->group_id], 401);
     }
     
     /**
@@ -132,15 +133,49 @@ class RaffleController extends Controller
          return response()->json(['message' => 'Error to get Raffle data'], 500);
     }
     
+ /** obtiene los datos de un sorteo */
+    public function getRaffle(Request $request){
 
-    public function getRaffle(){
-
-        $raffle = new Raffle();
-        // $raffle->name = 'sorteo';
-        // $raffle->description = '';
-        // $res = $raffle->save();
-         return response()->json($res, 200);
+        $raffle =  Raffle::find($request->raffle_id);
+         if ($raffle !=""){
+             return response()->json(['message'=>'Raffle encontrado','raffle'=>$res], 200);
+         }
+        return response()->json(['message'=>'Raffle no encontrado'],400);
     }
+/**
+ * $request->user_id
+ */
+     /** obtiene los datos de un sorteo */
+    public function getActiveRafflesByUser(Request $request){
+        $raffles = DB::table('raffles')
+            ->join('group_user', 'raffles.group_id', '=', 'group_user.group_id')
+            ->join('users','users.id','=','group_user.user_id' )
+            ->where('users.id', '=', $request->user_id )
+            ->whereNull('raffles.end_date')
+            ->select('raffles.id','raffles.group_id','raffles.name')
+            ->get();
+         if ($raffles !=""){
+             return response()->json(['message'=>'Raffle encontrado','raffles'=>$raffles], 200);
+         }
+        return response()->json(['message'=>'Raffle no encontrado'],400);
+    }
+
+ /**
+ * $request->group_id
+ */
+     /** obtiene los datos de un sorteo */
+     public function getActiveRafflesByGroup(Request $request){
+        $raffles = DB::table('raffles')
+            ->where('raffles.group_id', '=', $request->group_id )
+            ->whereNull('raffles.end_date')
+            ->select('raffles.id','raffles.group_id','raffles.name')
+            ->get();
+         if ($raffles !=""){
+             return response()->json(['message'=>'Raffle encontrado','raffles'=>$raffles], 200);
+         }
+        return response()->json(['message'=>'Raffle no encontrado'],400);
+    }
+
 
 
 /**
@@ -149,32 +184,30 @@ class RaffleController extends Controller
  * $request->user_id
  */
     public function putCard(Request $request){
-
         $raffle =  Raffle::find($request->raffle_id);
          $i = 0;
-        $cards_raffle = $raffle->Cards;
-        foreach( $cards_raffle as $card){
-            $cards[$i]= $card->id;  
-            $i++;
-        }
-        if (!is_array($cards)){
-            $cards = array();
+         $cards = array();
+         $cards_raffle = $raffle->Cards;
+         if (count($cards_raffle)>0 ){
+            foreach( $cards_raffle as $card){
+                $cards[$i]= $card->id;  
+                $i++;
+            }
         }
         $i= count($cards) + 1;
-        if (!in_array($request->card_id, $cards)){           
-           $res = $raffle->Cards()->attach($request->card_id, [ 'raffle_id'=>$request->raffle_id, 
-                                                                'user_id'=>$request->user_id, 
-                                                                'indice'=> $i, 
-                                                                'created_at'=>date("Y-m-d H:i:s"), 
-                                                                'updated_at'=> date("Y-m-d H:i:s")]);
+        // echo '<pre> $card = ';print_r($cards); echo '</pre>';
+        if (!in_array($request->card_id, $cards)){
+            $res = $raffle->Cards()->attach($request->card_id, [ 'raffle_id'=>$request->raffle_id, 
+                                                                 'user_id'=>$request->user_id, 
+                                                                 'indice'=> $i, 
+                                                                 'created_at'=>date("Y-m-d H:i:s"), 
+                                                                 'updated_at'=> date("Y-m-d H:i:s")]);
+            return response()->json([ 'message'=>'Card added successfully ','card'=>$request->card_id, 'raffle_id'=>$request->raffle_id], 200);
+        }else {
+            return response()->json([ 'message'=>'card already in raffle ','card'=>$request->card_id],401 );
         }
-        if ($res){
-            return response()->json( $raffle->Cards);
-        } else{
-            return response()->json(['message' => 'Error to create Raffle'], 500);
-        }
+       
     }
- 
  
     /**
      * 
@@ -183,7 +216,6 @@ class RaffleController extends Controller
      * raffle_id
      * ficha_id
      */
-
     public function checkFullWinner(Request $request){
      
         $checkFull = new CheckFull();
@@ -272,7 +304,6 @@ class RaffleController extends Controller
                        ->where('check_cards.card_id', '=' , null)
                        ->select('cards.*')
                        ->get();
-        // print_r($cardswith4);          
          foreach ($cardswith4 as $c){
              $card = Card:: find($c->id);
              $checkC = new checkCard();
@@ -302,141 +333,141 @@ class RaffleController extends Controller
               $j++;
             }  
             print_r($l);
-           if (in_array($request->ficha_id, $array_comb01 ) && !in_array(1,$l)){    
+           if (in_array($request->ficha_id, $array_comb01 ) && !in_array(1,$l)){
                 $checkC->linea =1;
-                $checkC->combinacion ='comb01';              
-                if (($clave = array_search($request->ficha_id, $array_comb01)) !== false) {              
+                $checkC->combinacion ='comb01';
+                if (($clave = array_search($request->ficha_id, $array_comb01)) !== false) { 
                     unset($array_comb01[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb01 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb02) && !in_array(2, $l)){    
+            if (in_array($request->ficha_id, $array_comb02) && !in_array(2, $l)){ 
                 $checkC->linea =2;
-                $checkC->combinacion ='comb02';              
-                if (($clave = array_search($request->ficha_id, $array_comb02)) !== false) {          
+                $checkC->combinacion ='comb02'; 
+                if (($clave = array_search($request->ficha_id, $array_comb02)) !== false) {
                     unset($array_comb02[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb02 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb03 ) && !in_array(3, $l)){    
+            if (in_array($request->ficha_id, $array_comb03 ) && !in_array(3, $l)){
                 $checkC->linea =3;
-                $checkC->combinacion ='comb03';              
-                if (($clave = array_search($request->ficha_id, $array_comb03)) !== false) {             
+                $checkC->combinacion ='comb03';
+                if (($clave = array_search($request->ficha_id, $array_comb03)) !== false) {
                     unset($array_comb03[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb03 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb04 ) && !in_array(4, $l)){    
+            if (in_array($request->ficha_id, $array_comb04 ) && !in_array(4, $l)){
                 $checkC->linea =4;
-                $checkC->combinacion ='comb04';              
-                if (($clave = array_search($request->ficha_id, $array_comb04)) !== false) {           
+                $checkC->combinacion ='comb04'; 
+                if (($clave = array_search($request->ficha_id, $array_comb04)) !== false) {
                     unset($array_comb04[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb04 );
                 $checkC->save();
             }
            
-            if (in_array($request->ficha_id, $array_comb05 )&& !in_array(5, $l)){    
+            if (in_array($request->ficha_id, $array_comb05 )&& !in_array(5, $l)){
                 $checkC->linea =5;
-                $checkC->combinacion ='comb05';              
-                if (($clave = array_search($request->ficha_id, $array_comb05)) !== false) {         
+                $checkC->combinacion ='comb05';
+                if (($clave = array_search($request->ficha_id, $array_comb05)) !== false) {
                     unset($array_comb05[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb05 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb06 )&& !in_array(6, $l)){    
+            if (in_array($request->ficha_id, $array_comb06 )&& !in_array(6, $l)){ 
                 $checkC->linea =6;
-                $checkC->combinacion ='comb06';              
-                if (($clave = array_search($request->ficha_id, $array_comb06)) !== false) {             
+                $checkC->combinacion ='comb06';
+                if (($clave = array_search($request->ficha_id, $array_comb06)) !== false) {
                     unset($array_comb06[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb06 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb07 ) && !in_array(7, $l)){    
+            if (in_array($request->ficha_id, $array_comb07 ) && !in_array(7, $l)){
                 $checkC->linea =7;
-                $checkC->combinacion ='comb07';              
-                if (($clave = array_search($request->ficha_id, $array_comb07)) !== false) {             
+                $checkC->combinacion ='comb07';
+                if (($clave = array_search($request->ficha_id, $array_comb07)) !== false) {
                     unset($array_comb07[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb07 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb08 ) && !in_array(8, $l)){    
+            if (in_array($request->ficha_id, $array_comb08 ) && !in_array(8, $l)){
                 $checkC->linea =8;
-                $checkC->combinacion ='comb08';              
-                if (($clave = array_search($request->ficha_id, $array_comb08)) !== false) {              
+                $checkC->combinacion ='comb08';
+                if (($clave = array_search($request->ficha_id, $array_comb08)) !== false) { 
                     unset($array_comb08[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb08 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb09 ) && !in_array(9, $l)){    
+            if (in_array($request->ficha_id, $array_comb09 ) && !in_array(9, $l)){
                 $checkC->linea =9;
-                $checkC->combinacion ='comb09';              
-                if (($clave = array_search($request->ficha_id, $array_comb09)) !== false) {             
+                $checkC->combinacion ='comb09';
+                if (($clave = array_search($request->ficha_id, $array_comb09)) !== false) {
                     unset($array_comb09[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb09 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb10 ) && !in_array(10, $l)){    
+            if (in_array($request->ficha_id, $array_comb10 ) && !in_array(10, $l)){
                 $checkC->linea =10;
-                $checkC->combinacion ='comb10';              
-                if (($clave = array_search($request->ficha_id, $array_comb10)) !== false) {             
+                $checkC->combinacion ='comb10';
+                if (($clave = array_search($request->ficha_id, $array_comb10)) !== false) {
                     unset($array_comb10[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb10 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb11 ) && !in_array(11, $l)){    
+            if (in_array($request->ficha_id, $array_comb11 ) && !in_array(11, $l)){
 
                 $checkC->linea =11;
-                $checkC->combinacion ='comb11';              
-                if (($clave = array_search($request->ficha_id, $array_comb11)) !== false) {             
+                $checkC->combinacion ='comb11';
+                if (($clave = array_search($request->ficha_id, $array_comb11)) !== false) {
                     unset($array_comb11[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb11 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb12 ) && !in_array(12, $l)){    
+            if (in_array($request->ficha_id, $array_comb12 ) && !in_array(12, $l)){
                 $checkC->linea =12;
-                $checkC->combinacion ='comb12';              
-                if (($clave = array_search($request->ficha_id, $array_comb12)) !== false) {               
+                $checkC->combinacion ='comb12';
+                if (($clave = array_search($request->ficha_id, $array_comb12)) !== false) {
                     unset($array_comb12[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb12 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb13 ) && !in_array(13, $l)){    
+            if (in_array($request->ficha_id, $array_comb13 ) && !in_array(13, $l)){
                 $checkC->linea =13;
-                $checkC->combinacion ='comb13';              
-                if (($clave = array_search($request->ficha_id, $array_comb13)) !== false) {               
+                $checkC->combinacion ='comb13';
+                if (($clave = array_search($request->ficha_id, $array_comb13)) !== false) {
                     unset($array_comb13[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb13 );
                 $checkC->save();
             }
 
-            if (in_array($request->ficha_id, $array_comb14 ) && !in_array(14, $l)){    
+            if (in_array($request->ficha_id, $array_comb14 ) && !in_array(14, $l)){
                 $checkC->linea =14;
-                $checkC->combinacion ='comb14';              
-                if (($clave = array_search($request->ficha_id, $array_comb14)) !== false) {              
+                $checkC->combinacion ='comb14';
+                if (($clave = array_search($request->ficha_id, $array_comb14)) !== false) {
                     unset($array_comb14[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb14 );
@@ -493,7 +524,7 @@ class RaffleController extends Controller
      * raffle_id
      * user_id
      */
-     public function getCardsRaffle(Request $request){
+     public function getCardsRaffleByUser(Request $request){
 
         $userCardsRaffle = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
@@ -712,7 +743,7 @@ class RaffleController extends Controller
             //  $raffle->winner = $lineWinner;
             //  $raffle->save();  
             return $lineWinner;
-         }        
+         }
          $cardswith4 = DB::table('cards')
                        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
                        ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
@@ -723,7 +754,7 @@ class RaffleController extends Controller
                        ->where('check_cards.card_id', '=' , null)
                        ->select('cards.*')
                        ->get();
-        // print_r($cardswith4);          
+        // print_r($cardswith4);
          foreach ($cardswith4 as $c){
              $card = Card:: find($c->id);
              $checkC = new checkCard();
@@ -755,8 +786,8 @@ class RaffleController extends Controller
             print_r($l);
            if (in_array($ficha_id, $array_comb01 ) && !in_array(1,$l)){    
                 $checkC->linea =1;
-                $checkC->combinacion ='comb01';              
-                if (($clave = array_search($ficha_id, $array_comb01)) !== false) {              
+                $checkC->combinacion ='comb01';
+                if (($clave = array_search($ficha_id, $array_comb01)) !== false) {
                     unset($array_comb01[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb01 );
@@ -765,8 +796,8 @@ class RaffleController extends Controller
 
             if (in_array($ficha_id, $array_comb02) && !in_array(2, $l)){    
                 $checkC->linea =2;
-                $checkC->combinacion ='comb02';              
-                if (($clave = array_search($ficha_id, $array_comb02)) !== false) {          
+                $checkC->combinacion ='comb02';
+                if (($clave = array_search($ficha_id, $array_comb02)) !== false) {
                     unset($array_comb02[$clave]);
                 }
                 $checkC->faltantes= implode('|',$array_comb02 );

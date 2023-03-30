@@ -28,21 +28,45 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::resource('Account', AccountController::class)->except([ 'create','edit' ]);
 
+
+
+/**********************************   CARD **************************************************/
 Route::resource('Card', CardController::class)->except([ 'edit' ]);
 
 Route::post('card/fillcard', [CardController::class, 'fillCard']);
-
+//obtiene todos los cartones 
 Route::get('card/getCards', [CardController::class, 'getCards']);
+//Onbtirne los cartones dispoinibles a partir de el raffle_id
+Route::get ('card/getAvailableCards/{raffle_id}', [CardController::class, 'getAvailableCards']);
+//obtiene los cartones disponibles a partir de un grupo
+Route::get ('card/getAvailableCardsByGroup/{group_id}', [CardController::class, 'getAvailableCardsByGroup']);
+
+/**********************************   FICHA  ***********************************************/
 
 Route::resource('ficha', FichaController::class)->except([ 'create','edit' ]);
 
 Route::post('ficha/{name}/{active}', [FichaController::class, 'store']);
 
+
+/**********************************   GROUP  ***********************************************/
+
 Route::resource('Group', GroupController::class)->except([ 'create','edit' ]);
 
 Route::get('Group/getGroup/{group_id}', [GroupController::class, 'getGroup' ]);
 
+
+/**********************************    USER  **********************************************/
+
+Route::resource('User', RaffleController::class)->except([ 'create','edit' ]);
+
+//Obtiene los grupos en lo que se encuentra el usuario 
 Route::get('User/getGrupos/{id}', [UserController::class, 'getGrupos' ]);
+
+//Obtener datos de usuario a partir del firebase
+Route::get('User/getUserByFirebase/{firebase_localId}', [UserController::class, 'getUserByFirebase' ]);
+
+//actualiza los datos de firebase a la bd local 
+Route::put('User/updateDataFirebase/{firebase_localId}/{firebase_token}/{firebase_last_connection}', [UserController::class, 'updateDataFirebase' ]);
 
 // agregar un usuario a un grupo
 Route::put('User/putGroup/{group_id}/{user_id}', [UserController::class, 'putGroup' ]);
@@ -50,8 +74,12 @@ Route::put('User/putGroup/{group_id}/{user_id}', [UserController::class, 'putGro
 // quitar un usuario de un grupo
 Route::put('User/putOffGroup/{group_id}/{user_id}', [UserController::class, 'putOffGroup' ]);
 
+
+/**********************************   LEVEL  ***********************************************/
+
 Route::resource('Level', LevelController::class)->except([ 'create','edit' ]);
 
+/**********************************   RAFFLE  **********************************************/
 //obtiene los valores del raffle 
 Route::resource('Raffle', RaffleController::class)->except([ 'create','edit' ]);
 
@@ -64,14 +92,20 @@ Route::get('Raffle/newFicha/{raffle_id}', [RaffleController::class, 'newFicha'])
 //obtiene las fichas de un sorteo 
 Route::get('Raffle/getFichas/{raffle_id}', [RaffleController::class, 'getFichas']);
 
-//
-Route::post('Raffle/getRaffle', [RaffleController::class, 'getRaffle']);
+//obtiene los datos del sorteo
+Route::get('Raffle/getRaffle', [RaffleController::class, 'getRaffle']);
+
+//obtiene los datos del sorteo por usuario
+Route::get('Raffle/getActiveRafflesByUser/{user_id}', [RaffleController::class, 'getActiveRafflesByUser']); 
+
+//obtiene los datos del sorteo por grupo 
+Route::get('Raffle/getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']); 
 
 //asigna un carton a un usuario y a un sorteo
-Route::post('Raffle/putCard/{raffle_id}/{group_id}/{user_id}', [RaffleController::class, 'putCard']);
+Route::post('Raffle/putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
 
 //obtiene los cartones de un usuario para un sorteo
-Route::get('Raffle/getCardsRaffle/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffle']);
+Route::get('Raffle/getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
 
 //chequea si hay un ganador de linea
 Route::post('Raffle/checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
