@@ -24,7 +24,7 @@ class Ficha extends Model
 
     public function Raffles(){
 
-        return $this->belongsToMany(Raffle::class);       
+        return $this->belongsToMany(Raffle::class);
     }
 
 }

@@ -14,7 +14,8 @@ class AddColumnsToRafflesTable extends Migration
     public function up()
     {
         Schema::table('raffles', function (Blueprint $table) {
-            $table->after('group_id', function($table){     
+            $table->after('group_id', function($table){ 
+                $table->integer('groupficha_id')->nullable();
                 $table->unsignedDecimal('total_amount', $precision = 8, $scale = 2)->nullable(); //total bet
                 $table->unsignedDecimal('card_amount', $precision = 8, $scale = 2)->nullable(); //bet bike
                 $table->integer('minimun_play')->nullable();
@@ -44,8 +45,9 @@ class AddColumnsToRafflesTable extends Migration
     public function down()
     {
         Schema::table('raffles', function (Blueprint $table) {
-                $table->dropColumn('total_amount'); 
-                $table->dropColumn('card_amount');             
+            $table->dropColumn('groupficha_id'); 
+            $table->dropColumn('total_amount'); 
+            $table->dropColumn('card_amount');             
                 $table->dropColumn('minimun_play');
                 $table->dropColumn('maximun_play');
                 $table->dropColumn('maximun_user_play');

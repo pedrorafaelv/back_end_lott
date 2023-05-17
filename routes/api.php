@@ -125,3 +125,8 @@ Route::post('Raffle/endRaffle/{raffle_id}/{end_date}/{end_hour}', [RaffleControl
 //auto Raffle
 Route::get('Raffle/autoRaffle/{raffle_id}', [RaffleController::class, 'autoRaffle']);
 
+//check line Winner
+Route::get('Raffle/checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
+
+//check line Winner
+Route::get('Raffle/checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);

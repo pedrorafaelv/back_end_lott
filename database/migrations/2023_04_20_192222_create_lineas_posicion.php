@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateCheckFullsTable extends Migration
+class CreateLineasPosicion extends Migration
 {
     /**
      * Run the migrations.
@@ -13,13 +13,10 @@ class CreateCheckFullsTable extends Migration
      */
     public function up()
     {
-        Schema::create('check_fulls', function (Blueprint $table) {
+        Schema::create('lineas_posicion', function (Blueprint $table) {
             $table->id();
-            $table->integer('card_id');
-            $table->integer('raffle_id');
-            $table->integer('nro_faltas');
-            $table->text('faltantes');
-            $table->text('combinacion');
+            $table->integer('posicion');
+            $table->integer('linea');
             $table->timestamps();
         });
     }
@@ -31,6 +28,6 @@ class CreateCheckFullsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('check_fulls');
+        Schema::dropIfExists('lineas_posicion');
     }
 }

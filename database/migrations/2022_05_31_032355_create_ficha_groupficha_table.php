@@ -13,7 +13,7 @@ class CreateFichaGroupfichaTable extends Migration
      */
     public function up()
     {
-        Schema::create('ficha_groupficha', function (Blueprint $table) {
+        Schema::create('ficha_groupfichas', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('ficha_id')->nullable();
             $table->unsignedBigInteger('groupficha_id')->nullable();
@@ -31,6 +31,6 @@ class CreateFichaGroupfichaTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('ficha_groupficha');
+        Schema::dropIfExists('ficha_groupfichas');
     }
 }

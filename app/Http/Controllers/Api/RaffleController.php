@@ -115,22 +115,24 @@ class RaffleController extends Controller
     {
         //
     }
-
-    
     
     public function getFichas(Request $request){
         $i = 0;
         $fichas = Raffle::find($request->raffle_id)->Fichas;
-
         $Raffle  = Raffle::find($request->raffle_id);
+        $f=array();
+        $i = 0;
         if (count($fichas) > 0){
             foreach($fichas as $ficha){
+                $ficha->image .= '@';
                 $f[$i]= $ficha->name;
                 $i++;
             }
-            return response()->json(['Raffle'=> $Raffle, 'ArrFichas'=> $f, 'Fichas'=> Raffle::find($request->raffle_id)->Fichas]); 
+        } 
+        if (!empty($fichas)){
+            return response()->json(['Raffle'=> $Raffle, 'ArrFichas'=> $f, 'Fichas'=> $fichas], 200); 
         }
-         return response()->json(['message' => 'Error to get Raffle data'], 500);
+         return response()->json(['message' => 'Error to get Raffle data'],401 );
     }
     
  /** obtiene los datos de un sorteo */
@@ -226,7 +228,7 @@ class RaffleController extends Controller
         ->where('card_ficha.ficha_id', '=', $request->ficha_id)
         ->where('card_raffle.raffle_id', '=', $request->raffle_id )
         ->where('check_fulls.raffle_id', '=', $request->raffle_id )
-        ->select('cards.id','cards.combTotal' ,'check_fulls.nro_faltas as faltas' , 'check_fulls.faltantes as faltantes', 'check_fulls.id as checkFull_id')
+        ->select('cards.id','cards.combTotal' ,'check_fulls.nro_faltas as faltas' , 'check_fulls.faltantes as faltantes', 'check_fulls.id as checkFull_id', 'check_full.combinacion')
         ->orderBy('faltas')
         ->get();
         if ( count($cards) > 0 ){
@@ -251,6 +253,92 @@ class RaffleController extends Controller
         }
     }
 
+
+    public function newFicha(Request $request){ 
+        //se debe obtener dinamicamente el numero mayor de fichas 
+        $maxFicha = 375;
+        //obtener las fichas de la tabla fichas_raffles
+        $fichas_raffle = Raffle::find($request->raffle_id)->Fichas;
+        $raffle= Raffle::find($request->raffle_id);
+        $nroFicha = count($fichas_raffle);
+        $i = 0;
+        if($nroFicha >0){
+            foreach ($fichas_raffle as $ficha){
+                $fichas[$i]= $ficha->id;
+                $i++;
+            }
+        }else{
+            $fichas = array();
+        } 
+        $indice= count($fichas) + 1;
+        for( $j = 0; $j<=$maxFicha ; $j++){
+            $f = Ficha::inRandomOrder()
+            ->where('active', 1)
+            ->first();
+           //    $f = DB::table('ficha')
+          //     ->join('ficha_groupficha', 'ficha.id', '=', 'ficha_groupficha.ficha_id')
+        //       ->where('ficha.active','=','1')
+        //       ->where ('ficha_groupficha', '=',$request->group_id )
+        //       ->inRandomOrder()
+        //       ->first();
+            if (!in_array($f->id, $fichas)){           
+                $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$request->raffle_id,
+                                                        'indice'=> $indice, 
+                                                        'created_at'=>date("Y-m-d H:i:s"), 
+                                                        'updated_at'=> date("Y-m-d H:i:s")]);
+                return $f; 
+            }
+        }
+     }
+      
+    
+     /**
+     * 
+     * @param  Request $request
+     * @return \Illuminate\Http\Response
+     *
+     */
+    function getNewRecord(Request $request){
+        //Obtener el sorteo
+         $lineWinner = "0";
+         $fullWinner = "0";
+        $r = Raffle::find($request->raffle_id); 
+        //verificar que el sorteo no esté cerrado
+        if ( $r->end_date !== ""){    
+            //obtener nueva ficha
+            $ficha = $this->newFicha($request);
+            //verificar que el sorteo tenga ganador de linea o lleno
+            if ($r->reward_line === 1 && ($r->winner == ""|| $r->winner == null) ){
+                // dd('$r', $r);
+                //verificar ganador de línea
+                $lineWinner = $this->checkLineWinner($request->raffle_id, $ficha->id );
+                // guardar el line winner en el registro del raffle
+                if($lineWinner != "" && ($r->winner =="" || $r->winner==null)){
+                    $r->winner = $lineWinner;
+                    $r->save();
+                     if ($r->reward_full ==""|| $r->reward_full == null){
+                        $this->endRaffle($request);
+                        return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=> $lineWinner, 'fullWinner' => ""], 200);
+                     }
+                }
+            }
+            if ($r->reward_full == 1){
+                //verificar si tiene ganador lleno
+                $fullWinner = $this->checkFullW($r->id, $ficha->id);
+                if($fullWinner != ""){
+                    $r->full_winner =  $fullWinner;
+                    $this->endRaffle($request); 
+                    return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=>$lineWinner ,'fullWinner'=>$fullWinner], 200);
+                }
+               // guardar el line winner en el registro del raffle
+            }
+            return response()->json(['raffle'=>$r, 'ficha'=> $ficha], 200);  
+        }else{
+            return response()->json(['message' => 'End Raffle'], 401);
+        }
+    }
+
+
     /**
      * 
      * @param Request $request
@@ -259,224 +347,198 @@ class RaffleController extends Controller
      * raffle_id
      * ficha_id
      */
-    public function checkLineWinner(Request $request){
+    public function checkLineWinner($raffle_id, $ficha_id){
+        // dd('checkLineWinner =>  raffle_id = '. $raffle_id.' ficha_id =  '. $ficha_id);
         $lines = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
         ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
         ->join('check_cards', 'cards.id', '=', 'check_cards.card_id')
-        ->where('card_ficha.ficha_id', '=', $request->ficha_id)
-        ->where('card_raffle.raffle_id', '=', $request->raffle_id )
-        ->where('check_cards.raffle_id', '=', $request->raffle_id )
-        ->select('cards.id', 'check_cards.nro_faltas as faltas' , 'check_cards.faltantes as faltantes', 'check_cards.id as checkCards_id')
+        ->where('card_ficha.ficha_id', '=', $ficha_id)
+        ->where('check_cards.raffle_id', '=', $raffle_id )
+        ->where('card_raffle.raffle_id', '=', $raffle_id )
+        ->select('cards.id as card_id', 'check_cards.nro_faltas as faltas' , 'check_cards.faltantes as faltantes', 'check_cards.id as checkCard_id')
         ->orderBy('faltas')
         ->get();
         $i=0;
-         //print_r($lines);
-         if (count($lines) > 0){
+        $z =array();
+        // dd('entra en checkLineWinner');
+        $lineWinner= array();
+        $checkCards = new checkCard();
+       
+        if (count($lines) > 0){
             foreach($lines as $line){
-                if ($line->faltas ===1){
-                    $lineWinner[$i] = $line;
-                    $i++;
-                }elseif(count ($lineWinner) === 0) 
-                {   
-                    $lineWinner = array();
-                    $array_faltantes = explode('|', $line->faltantes);
-                    $checkCards->find($line->checkCard_id);
-                    $checkCards->nro_faltas = $line->faltas -1;
-                    if (($request->ficha_id= array_search($request->ficha_id, $array_faltantes)) !== false) {
-                        unset($array_faltantes[$request->ficha_id]);
+                $checkCa= CheckCard::find($line->checkCard_id);
+                $array_faltantes = explode('|', $checkCa->faltantes);
+                if (($clave = array_search($ficha_id, $array_faltantes )) !== false) {
+                    $checkCa->nro_faltas = $line->faltas -1;
+                    unset($array_faltantes[$clave]);
+                }
+                if ($checkCa->nro_faltas == 0){
+                    $line->nro_faltas = 0;
+                    $fichas_linea= DB::table('card_ficha')
+                    ->join('lineas_posicion', 'lineas_posicion.posicion', '=', 'card_ficha.posicion')
+                    ->where('card_ficha.card_id', '=', $line->card_id )
+                    ->where('lineas_posicion.linea', '=', $checkCa->linea )
+                    ->select('card_ficha.ficha_id as ficha_id','lineas_posicion.linea as linea')
+                    ->orderBy('linea')
+                    ->get();
+                    $z = 0;
+                    $fich= array();
+                    if (count($fichas_linea)>0){
+                        foreach($fichas_linea as $fic){
+                            $fich[$z] = $fic->ficha_id;
+                            $z++;
+                        }
                     }
-                    $checkCards-> implode('|',$array_faltantes);
-                    $checkCards->save(); 
-                } 
-            }
-            return response()->json(['winner'=>$lineWinner], 200);
-         }
-
-             
-         $cardswith4 = DB::table('cards')
-                       ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-                       ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
-                       ->leftJoin('check_cards', 'cards.id', '=', 'check_cards.card_id')
-                       ->where('card_ficha.ficha_id', '=', $request->ficha_id)
-                       ->where('card_raffle.raffle_id', '=', $request->raffle_id )
-                       ->where('check_cards.raffle_id','=', $request->raffle_id)
-                       ->where('check_cards.card_id', '=' , null)
-                       ->select('cards.*')
-                       ->get();
-         foreach ($cardswith4 as $c){
-             $card = Card:: find($c->id);
-             $checkC = new checkCard();
-             $checkC->id_card = $card->id;
-             $checkC->id_raffle = $request->raffle_id;
-             $checkC->nro_faltas =4;
-             $array_comb01= explode('|', $card->comb01);
-             $array_comb02= explode('|', $card->comb02);
-             $array_comb03= explode('|', $card->comb03);
-             $array_comb04= explode('|', $card->comb04);
-             $array_comb05= explode('|', $card->comb05);
-             $array_comb06= explode('|', $card->comb06);
-             $array_comb07= explode('|', $card->comb07);
-             $array_comb08= explode('|', $card->comb08);
-             $array_comb09= explode('|', $card->comb09);
-             $array_comb10= explode('|', $card->comb10);
-             $array_comb11= explode('|', $card->comb11);
-             $array_comb12= explode('|', $card->comb12);
-             $array_comb13= explode('|', $card->comb13);
-             $array_comb14= explode('|', $card->comb14);
-
-        //    // se verifica cada linea de cada carton que participa 
-            $faltan = checkCard::where('card_id', $c->id)->where('raffle_id', $request->raffle_id)->get();
-             $j =0;
-            foreach($faltan as $f ){
-              $l[$j] = $f->linea;
-              $j++;
-            }  
-            print_r($l);
-           if (in_array($request->ficha_id, $array_comb01 ) && !in_array(1,$l)){
-                $checkC->linea =1;
-                $checkC->combinacion ='comb01';
-                if (($clave = array_search($request->ficha_id, $array_comb01)) !== false) { 
-                    unset($array_comb01[$clave]);
+                    $w= array();
+                    $w['card_id'] =$line->card_id;
+                    $w['fichas'] = $fich;
+                    $w['linea']= $fichas_linea->linea;
+                    // if (is_object($line)) {
+                    //     // Gets the properties of the given object
+                    //     // with get_object_vars function
+                    //     $l = get_object_vars($line);
+                    // }
+                //   $line->append($fich);
+                    //  if (is_array($l)){
+                    //      array_push($fich, $line->card_id);
+                    //  }
+                    $lineWinner[$i] = $w;
+                    $i++;
+                }else{
+                    $checkCa->faltantes= implode('|',$array_faltantes );
                 }
-                $checkC->faltantes= implode('|',$array_comb01 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb02) && !in_array(2, $l)){ 
-                $checkC->linea =2;
-                $checkC->combinacion ='comb02'; 
-                if (($clave = array_search($request->ficha_id, $array_comb02)) !== false) {
-                    unset($array_comb02[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb02 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb03 ) && !in_array(3, $l)){
-                $checkC->linea =3;
-                $checkC->combinacion ='comb03';
-                if (($clave = array_search($request->ficha_id, $array_comb03)) !== false) {
-                    unset($array_comb03[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb03 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb04 ) && !in_array(4, $l)){
-                $checkC->linea =4;
-                $checkC->combinacion ='comb04'; 
-                if (($clave = array_search($request->ficha_id, $array_comb04)) !== false) {
-                    unset($array_comb04[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb04 );
-                $checkC->save();
-            }
-           
-            if (in_array($request->ficha_id, $array_comb05 )&& !in_array(5, $l)){
-                $checkC->linea =5;
-                $checkC->combinacion ='comb05';
-                if (($clave = array_search($request->ficha_id, $array_comb05)) !== false) {
-                    unset($array_comb05[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb05 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb06 )&& !in_array(6, $l)){ 
-                $checkC->linea =6;
-                $checkC->combinacion ='comb06';
-                if (($clave = array_search($request->ficha_id, $array_comb06)) !== false) {
-                    unset($array_comb06[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb06 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb07 ) && !in_array(7, $l)){
-                $checkC->linea =7;
-                $checkC->combinacion ='comb07';
-                if (($clave = array_search($request->ficha_id, $array_comb07)) !== false) {
-                    unset($array_comb07[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb07 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb08 ) && !in_array(8, $l)){
-                $checkC->linea =8;
-                $checkC->combinacion ='comb08';
-                if (($clave = array_search($request->ficha_id, $array_comb08)) !== false) { 
-                    unset($array_comb08[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb08 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb09 ) && !in_array(9, $l)){
-                $checkC->linea =9;
-                $checkC->combinacion ='comb09';
-                if (($clave = array_search($request->ficha_id, $array_comb09)) !== false) {
-                    unset($array_comb09[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb09 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb10 ) && !in_array(10, $l)){
-                $checkC->linea =10;
-                $checkC->combinacion ='comb10';
-                if (($clave = array_search($request->ficha_id, $array_comb10)) !== false) {
-                    unset($array_comb10[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb10 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb11 ) && !in_array(11, $l)){
-
-                $checkC->linea =11;
-                $checkC->combinacion ='comb11';
-                if (($clave = array_search($request->ficha_id, $array_comb11)) !== false) {
-                    unset($array_comb11[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb11 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb12 ) && !in_array(12, $l)){
-                $checkC->linea =12;
-                $checkC->combinacion ='comb12';
-                if (($clave = array_search($request->ficha_id, $array_comb12)) !== false) {
-                    unset($array_comb12[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb12 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb13 ) && !in_array(13, $l)){
-                $checkC->linea =13;
-                $checkC->combinacion ='comb13';
-                if (($clave = array_search($request->ficha_id, $array_comb13)) !== false) {
-                    unset($array_comb13[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb13 );
-                $checkC->save();
-            }
-
-            if (in_array($request->ficha_id, $array_comb14 ) && !in_array(14, $l)){
-                $checkC->linea =14;
-                $checkC->combinacion ='comb14';
-                if (($clave = array_search($request->ficha_id, $array_comb14)) !== false) {
-                    unset($array_comb14[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb14 );
-                $checkC->save();
+                $checkCa->save();
+            } 
+            if (count($lineWinner)>0){
+                //return response()->json(['resp'=>'Ganador encontrado','winner'=>$lineWinner], 200);
+                return $lineWinner;
             }
         }
-        return response()->json(['resp'=>'No hay ganadores'], 200);
+        //ingresar los card_id que no estaán en la tabla check_cards
+        $cardswith4  = Card::select(DB::raw('z.*'))
+                ->from(DB::raw('(select t.* from (select `cards`.id, `lineas_posicion`.`linea` from `cards` inner join `card_raffle` on `cards`.`id` = `card_raffle`.`card_id` inner join `card_ficha` on `cards`.`id` = `card_ficha`.`card_id` inner join `lineas_posicion` on `lineas_posicion`.`posicion` = `card_ficha`.`posicion` where `card_ficha`.`ficha_id` = '.$ficha_id.' and `card_raffle`.`raffle_id` = '.$raffle_id.' ) as t left join `check_cards` on `t`.`id` = `check_cards`.`card_id` and `check_cards`.`raffle_id` = '.$raffle_id.' and `check_cards`.`linea` = `t`.`linea` where `check_cards`.`id` is null) as z'))
+                ->get();
+        //echo '<pre> cardswith4 =';print_r($cardswith4); echo '</pre>';
+        if ($cardswith4){
+            foreach ($cardswith4 as $c){
+                $card = Card::find($c->id);
+                $checkC = new checkCard();
+                $checkC->card_id = $card->id;
+                $checkC->raffle_id = $raffle_id;
+                $checkC->nro_faltas =4;
+                $array_comb01= explode('|', $card->comb01);
+                $array_comb02= explode('|', $card->comb02);
+                $array_comb03= explode('|', $card->comb03);
+                $array_comb04= explode('|', $card->comb04);
+                $array_comb05= explode('|', $card->comb05);
+                $array_comb06= explode('|', $card->comb06);
+                $array_comb07= explode('|', $card->comb07);
+                $array_comb08= explode('|', $card->comb08);
+                $array_comb09= explode('|', $card->comb09);
+                $array_comb10= explode('|', $card->comb10);
+                $array_comb11= explode('|', $card->comb11);
+                $array_comb12= explode('|', $card->comb12);
+                $array_comb13= explode('|', $card->comb13);
+                $array_comb14= explode('|', $card->comb14);
+                $array_comb = array($array_comb01, $array_comb02, $array_comb03, $array_comb04, $array_comb05, $array_comb06, $array_comb07, 
+                $array_comb08, $array_comb09, $array_comb10, $array_comb11, $array_comb12, $array_comb13, $array_comb14);
+                if (strlen($c->linea) == 1){
+                    $linea = '0'.$c->linea;
+                } else{
+                    $linea= $c->linea;
+                } 
+                if (in_array($ficha_id, $array_comb[$c->linea -1] ) ){
+                    $checkC->linea =$c->linea;
+                    $checkC->combinacion ='comb'.$linea;
+                    if (($clave = array_search($ficha_id, $array_comb[$c->linea -1])) !== false) {
+                        unset($array_comb[$c->linea-1][$clave]);
+                    }
+                    $checkC->faltantes= implode('|',$array_comb[$c->linea-1] );
+                    $checkC->save();
+                }
+            }
+            return false;
+        }
     }
   
+    /**
+     * 
+     * @param ficha_id $ficha_id
+     * @param raffle_id $raffle_id
+     * @return \Illuminate\Http\Response
+     * raffle_id
+     * ficha_id
+     */
+    public function checkFullW($raffle_id, $ficha_id){
+    //  $raffle_id = $request->raffle_id;
+    //  $ficha_id = $request->ficha_id;
+        $cards = DB::table('cards')
+        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+        ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
+        ->join('check_fulls', 'cards.id', '=', 'check_fulls.card_id')
+        ->where('card_ficha.ficha_id', '=', $ficha_id)
+        ->where('card_raffle.raffle_id', '=', $raffle_id )
+        ->where('check_fulls.raffle_id', '=', $raffle_id )
+        ->select('cards.id','cards.combTotal' ,'check_fulls.nro_faltas as faltas' , 'check_fulls.faltantes as faltantes', 'check_fulls.id as checkFull_id')
+        ->orderBy('faltas')
+        ->get();
+        if ( count($cards) > 0 ){
+         //return $cards;
+            $i = 0;
+            $fullWinner = array();
+            foreach($cards as $card){
+                if ($card->faltas ==1){
+                    $fullWinner[$i] = $card->id;
+                    $i++;
+                }elseif(count ($fullWinner) == 0){   
+                    $array_faltantes = explode('|', $card->faltantes);
+                    $checkF = CheckFull::find($card->checkFull_id); 
+                    if (($ficha_id= array_search($ficha_id, $array_faltantes)) !== false) {
+                        $checkF->nro_faltas = $card->faltas -1;
+                        unset($array_faltantes[$ficha_id]);
+                    }
+                    $checkF->faltantes = implode('|', $array_faltantes);
+                    $checkF->save(); 
+                } 
+            }
+            return $checkF;
+        }else{
+            $cards = DB::table('cards')
+            ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+            ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
+           ->leftJoin('check_fulls', function ($join) {
+            $join->on('cards.id', '=', DB::raw('check_fulls.card_id'))
+                 ->where('check_fulls.raffle_id', '=', 'card_raffle.raffle_id')
+                 ->whereNull('check_fulls.id');
+        })
+            ->where('card_ficha.ficha_id', '=', $ficha_id)
+            ->where('card_raffle.raffle_id', '=', $raffle_id )
+            ->whereNull('check_fulls.id' )
+            ->select('cards.id', 'cards.combTotal as faltantes','cards.combTotal as combinacion')
+            ->get();
+            if ( count($cards) > 0 ){
+                // return $cards;
+                 foreach ($cards as $card){
+                    $checkF = new checkFull();
+                    $checkF->card_id = $card->id;
+                    $checkF->raffle_id = $raffle_id;
+                    $checkF->nro_faltas = 24;
+                    $checkF->combinacion = $card->combinacion;
+                    $array_faltantes = explode('|', $card->faltantes);
+                    if (($ficha_id= array_search($ficha_id, $array_faltantes)) !== false) {
+                        unset($array_faltantes[$ficha_id]);
+                       }
+                       $checkF->faltantes =  implode('|', $array_faltantes);
+                        
+                    //    $checkF->faltantes= $card->faltantes;
+                       $checkF->save();
+                       return $checkF;
+                }
+            }
+        }
+    }
+
     /**
      * 
      * @param Request $request
@@ -485,7 +547,6 @@ class RaffleController extends Controller
      * start_date
      * start_hour
      */
-    
     public function setStart(Request $request){
         $raffle = Raffle::find($request->raffle_id);
         $raffle->start_date= $request->start_date;
@@ -517,6 +578,7 @@ class RaffleController extends Controller
             return response()->json(['message' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
         }
     }
+
      /**
      * 
      * @param Request $request
@@ -525,7 +587,6 @@ class RaffleController extends Controller
      * user_id
      */
      public function getCardsRaffleByUser(Request $request){
-
         $userCardsRaffle = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
         ->join('raffles', 'raffles.id', '=', 'card_raffle.raffle_id')
@@ -559,43 +620,8 @@ class RaffleController extends Controller
         }
         return response()->json(['Cards'=>$userCardsRaffle, 'Fichas'=> $fichas]);
      }
-   
-    /**
-     * 
-     * @param  Request $request
-     * @return \Illuminate\Http\Response
-     *
-     */
 
-     public function newFicha(Raffle $raffle){
-        
-        $f = Ficha::inRandomOrder()->first();
-        $i =0;
-         //obtener las fichas de la tabla fichas_raffles
-        $fichas_raffle = Raffle::find($raffle->id)->Fichas;
-     //    echo '$r = <pre>'. $raffle->id; print_r($fichas_raffle); echo '</pre>';
-     //    $fichas_raffle =$r->Fichas;
-        //echo '$fichas_raffle = ';print_r($fichas_raffle);
-        if(count($fichas_raffle)>0){
-            foreach ($fichas_raffle as  $ficha){
-                $fichas[$i]= $ficha->id;  
-                $i++;
-            }
-        }else{
-            $fichas = array();
-        } 
-        $i= count($fichas) + 1;
-     //    $raffle =new Raffle();
-        if (!in_array($f->id, $fichas)){           
-           $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$raffle->id,
-                                                  'indice'=> $i, 
-                                                  'created_at'=>date("Y-m-d H:i:s"), 
-                                                  'updated_at'=> date("Y-m-d H:i:s")]);
-        }
-        return $f; 
-     }
-      
-     /**
+    /**
      * 
      * @param  Request $request
      * @return \Illuminate\Http\Response
@@ -613,318 +639,5 @@ class RaffleController extends Controller
             }
             return response()->json(['winner'=> $winner->original['raffle']]);
         }
-    }
-
-     /**
-     * 
-     * @param  Request $request
-     * @return \Illuminate\Http\Response
-     *
-     */
-    function getNewRecord(Request $request){
-        //Obtener el sorteo
-        $r = Raffle::find($request->raffle_id); 
-        //verificar que el sorteo no esté cerrado
-        if ($r->winner == NULL && $r->full_winner == NULL && $r->end_date ==NULL){
-            //obtener nueva ficha
-            $ficha = $this->newFicha($r);
-            //verificar que el sorteo tenga ganador de linea o lleno
-            if ($r->reward_line == 1 && $r->winner == ""){
-                //verificar ganador de línea
-                $lineWinner = $this->checkLine($r->id, $ficha->id);
-                // guardar el line winner en el registro del raffle
-                if($lineWinner != ""){
-                    $r->winner = $lineWinner;
-                    $r->save();
-                    $this->endRaffle($request);
-                }
-            }
-            if ($r->reward_full == 1){
-                //verificar si tiene ganador lleno
-                $fullWinner = $this->checkFullW($r->id, $ficha->id);
-                if($fullWinner != ""){
-                    $r->full_winner =  $fullWinner;
-                    $this->endRaffle($request); 
-                    return response()->json (['raffle' =>$r, 'ficha'=> $ficha]);
-                }
-               // guardar el line winner en el registro del raffle
-            }
-            return response()->json(['raffle'=>$r, 'ficha'=> $ficha]);  
-        }else{
-            return response()->json(['message' => 'Error to get a new Record']);
-        }
-     
-    }
-
-    /**
-     * 
-     * @param ficha_id $ficha_id
-     * @param raffle_id $raffle_id
-     * @return \Illuminate\Http\Response
-     * raffle_id
-     * ficha_id
-     */
-    public function checkFullW( $raffle_id, $ficha_id){
-     
-        $checkFull = new CheckFull();
-        $cards = DB::table('cards')
-        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-        ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
-        ->join('check_fulls', 'cards.id', '=', 'check_fulls.card_id')
-        ->where('card_ficha.ficha_id', '=', $ficha_id)
-        ->where('card_raffle.raffle_id', '=', $raffle_id )
-        ->where('check_fulls.raffle_id', '=', $raffle_id )
-        ->select('cards.id','cards.combTotal' ,'check_fulls.nro_faltas as faltas' , 'check_fulls.faltantes as faltantes', 'check_fulls.id as checkFull_id')
-        ->orderBy('faltas')
-        ->get();
-        if ( count($cards) > 0 ){
-            foreach($cards as $card){
-                if ($card->faltas ===1){
-                    $fullWinner[$i] = $card;
-                    $i++;
-                }elseif(count ($fullWinner) === 0) 
-                {   
-                    $fullWinner = array();
-                    $array_faltantes = explode('|', $card->faltantes);
-                    $checkFull->find($card->checkFull_id);
-                    $checkFull->nro_faltas = $card->faltas -1;
-                    if (($ficha_id= array_search($ficha_id, $array_faltantes)) !== false) {
-                        unset($array_faltantes[$ficha_id]);
-                    }
-                    $checkFull-> implode('|', $array_faltantes);
-                    $checkFull->save(); 
-                } 
-            }
-            return $fullWinner;
-        }
-    }
-
-    /**
-     * 
-     * @param ficha_id $ficha_id
-     * @param raffle_id $raffle_id
-     * @return \Illuminate\Http\Response
-     * raffle_id
-     * ficha_id
-     */
-    public function checkLine( $raffle_id, $ficha_id ){
-        $lines = DB::table('cards')
-        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-        ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
-        ->join('check_cards', 'cards.id', '=', 'check_cards.card_id')
-        ->where('card_ficha.ficha_id', '=', $ficha_id)
-        ->where('card_raffle.raffle_id', '=', $raffle_id )
-        ->where('check_cards.raffle_id', '=', $raffle_id )
-        ->select('cards.id', 'check_cards.nro_faltas as faltas' , 'check_cards.faltantes as faltantes', 'check_cards.id as checkCards_id')
-        ->orderBy('faltas')
-        ->get();
-        $i=0;
-        //  var_dump($lines);
-         if (count($lines) > 0){
-            foreach($lines as $line){
-                if ($line->faltas ===1){
-                    $lineWinner[$i] = $line;
-                    $i++;
-                }elseif(count ($lineWinner) === 0) 
-                {   
-                    $lineWinner = array();
-                    $array_faltantes = explode('|', $line->faltantes);
-                    $checkCards->find($line->checkCard_id);
-                    $checkCards->nro_faltas = $line->faltas -1;
-                    if (($ficha_id= array_search($ficha_id, $array_faltantes)) !== false) {
-                        unset($array_faltantes[$ficha_id]);
-                    }
-                    $checkCards-> implode('|',$array_faltantes);
-                    $checkCards->save(); 
-                } 
-            }
-            // guardar ganador de linea en raffle
-            //  $raffle = Raffle::find($raffle_id);
-            //  $raffle->winner = $lineWinner;
-            //  $raffle->save();  
-            return $lineWinner;
-         }
-         $cardswith4 = DB::table('cards')
-                       ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-                       ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
-                       ->leftJoin('check_cards', 'cards.id', '=', 'check_cards.card_id')
-                       ->where('card_ficha.ficha_id', '=', $ficha_id)
-                       ->where('card_raffle.raffle_id', '=', $raffle_id )
-                       ->where('check_cards.raffle_id','=', $raffle_id)
-                       ->where('check_cards.card_id', '=' , null)
-                       ->select('cards.*')
-                       ->get();
-        // print_r($cardswith4);
-         foreach ($cardswith4 as $c){
-             $card = Card:: find($c->id);
-             $checkC = new checkCard();
-             $checkC->id_card = $card->id;
-             $checkC->id_raffle = $raffle_id;
-             $checkC->nro_faltas =4;
-             $array_comb01= explode('|', $card->comb01);
-             $array_comb02= explode('|', $card->comb02);
-             $array_comb03= explode('|', $card->comb03);
-             $array_comb04= explode('|', $card->comb04);
-             $array_comb05= explode('|', $card->comb05);
-             $array_comb06= explode('|', $card->comb06);
-             $array_comb07= explode('|', $card->comb07);
-             $array_comb08= explode('|', $card->comb08);
-             $array_comb09= explode('|', $card->comb09);
-             $array_comb10= explode('|', $card->comb10);
-             $array_comb11= explode('|', $card->comb11);
-             $array_comb12= explode('|', $card->comb12);
-             $array_comb13= explode('|', $card->comb13);
-             $array_comb14= explode('|', $card->comb14);
-
-        //    // se verifica cada linea de cada carton que participa 
-            $faltan = checkCard::where('card_id', $c->id)->where('raffle_id', $raffle_id)->get();
-             $j =0;
-            foreach($faltan as $f ){
-              $l[$j] = $f->linea;
-              $j++;
-            }  
-            print_r($l);
-           if (in_array($ficha_id, $array_comb01 ) && !in_array(1,$l)){    
-                $checkC->linea =1;
-                $checkC->combinacion ='comb01';
-                if (($clave = array_search($ficha_id, $array_comb01)) !== false) {
-                    unset($array_comb01[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb01 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb02) && !in_array(2, $l)){    
-                $checkC->linea =2;
-                $checkC->combinacion ='comb02';
-                if (($clave = array_search($ficha_id, $array_comb02)) !== false) {
-                    unset($array_comb02[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb02 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb03 ) && !in_array(3, $l)){    
-                $checkC->linea =3;
-                $checkC->combinacion ='comb03';              
-                if (($clave = array_search($ficha_id, $array_comb03)) !== false) {             
-                    unset($array_comb03[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb03 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb04 ) && !in_array(4, $l)){    
-                $checkC->linea =4;
-                $checkC->combinacion ='comb04';              
-                if (($clave = array_search($ficha_id, $array_comb04)) !== false) {           
-                    unset($array_comb04[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb04 );
-                $checkC->save();
-            }
-           
-            if (in_array($ficha_id, $array_comb05 )&& !in_array(5, $l)){    
-                $checkC->linea =5;
-                $checkC->combinacion ='comb05';              
-                if (($clave = array_search($ficha_id, $array_comb05)) !== false) {         
-                    unset($array_comb05[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb05 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb06 )&& !in_array(6, $l)){    
-                $checkC->linea =6;
-                $checkC->combinacion ='comb06';              
-                if (($clave = array_search($ficha_id, $array_comb06)) !== false) {             
-                    unset($array_comb06[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb06 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb07 ) && !in_array(7, $l)){    
-                $checkC->linea =7;
-                $checkC->combinacion ='comb07';              
-                if (($clave = array_search($ficha_id, $array_comb07)) !== false) {             
-                    unset($array_comb07[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb07 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb08 ) && !in_array(8, $l)){    
-                $checkC->linea =8;
-                $checkC->combinacion ='comb08';              
-                if (($clave = array_search($ficha_id, $array_comb08)) !== false) {              
-                    unset($array_comb08[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb08 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb09 ) && !in_array(9, $l)){    
-                $checkC->linea =9;
-                $checkC->combinacion ='comb09';              
-                if (($clave = array_search($ficha_id, $array_comb09)) !== false) {             
-                    unset($array_comb09[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb09 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb10 ) && !in_array(10, $l)){    
-                $checkC->linea =10;
-                $checkC->combinacion ='comb10';              
-                if (($clave = array_search($ficha_id, $array_comb10)) !== false) {             
-                    unset($array_comb10[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb10 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb11 ) && !in_array(11, $l)){    
-
-                $checkC->linea =11;
-                $checkC->combinacion ='comb11';              
-                if (($clave = array_search($ficha_id, $array_comb11)) !== false) {             
-                    unset($array_comb11[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb11 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb12 ) && !in_array(12, $l)){    
-                $checkC->linea =12;
-                $checkC->combinacion ='comb12';              
-                if (($clave = array_search($ficha_id, $array_comb12)) !== false) {               
-                    unset($array_comb12[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb12 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb13 ) && !in_array(13, $l)){    
-                $checkC->linea =13;
-                $checkC->combinacion ='comb13';              
-                if (($clave = array_search($ficha_id, $array_comb13)) !== false) {               
-                    unset($array_comb13[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb13 );
-                $checkC->save();
-            }
-
-            if (in_array($ficha_id, $array_comb14 ) && !in_array(14, $l)){    
-                $checkC->linea =14;
-                $checkC->combinacion ='comb14';              
-                if (($clave = array_search($ficha_id, $array_comb14)) !== false) {              
-                    unset($array_comb14[$clave]);
-                }
-                $checkC->faltantes= implode('|',$array_comb14 );
-                $checkC->save();
-            }
-        }
-        return false;
     }
 }
