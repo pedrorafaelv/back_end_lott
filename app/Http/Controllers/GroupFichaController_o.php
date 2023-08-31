@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GroupFicha;
 use Illuminate\Http\Request;
 
-class GroupFichaController extends Controller
+class GroupFichasssController extends Controller
 {
     /**
      * Display a listing of the resource.

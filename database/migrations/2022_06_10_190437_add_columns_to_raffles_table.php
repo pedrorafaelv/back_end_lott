@@ -18,6 +18,7 @@ class AddColumnsToRafflesTable extends Migration
                 $table->integer('groupficha_id')->nullable();
                 $table->unsignedDecimal('total_amount', $precision = 8, $scale = 2)->nullable(); //total bet
                 $table->unsignedDecimal('card_amount', $precision = 8, $scale = 2)->nullable(); //bet bike
+                $table->string('currency')->nullable();                    //currency 
                 $table->integer('minimun_play')->nullable();
                 $table->integer('maximun_play')->nullable();
                 $table->integer('maximun_user_play')->nullable();
@@ -48,21 +49,22 @@ class AddColumnsToRafflesTable extends Migration
             $table->dropColumn('groupficha_id'); 
             $table->dropColumn('total_amount'); 
             $table->dropColumn('card_amount');             
-                $table->dropColumn('minimun_play');
-                $table->dropColumn('maximun_play');
-                $table->dropColumn('maximun_user_play');
-                $table->dropColumn('retention_percent');
-                $table->dropColumn('retention_amount');
-                $table->dropColumn('admin_retention_percent');
-                $table->dropColumn('admin_retention_amount');
-                $table->dropColumn('raffle_type');              //manual-automatic
-                $table->dropColumn('privacy');                  //public- private 
-                $table->dropColumn('reward_line');              //yes-no
-                $table->dropColumn('percent_line');             //percent for line reward
-                $table->dropColumn('reward_full');              //yes-no
-                $table->dropColumn('percent_full');             //percent for full reward
-                $table->dropColumn('admin_user');
-                $table->dropColumn('scheduled_date');
+            $table->dropColumn('currency');             
+            $table->dropColumn('minimun_play');
+            $table->dropColumn('maximun_play');
+            $table->dropColumn('maximun_user_play');
+            $table->dropColumn('retention_percent');
+            $table->dropColumn('retention_amount');
+            $table->dropColumn('admin_retention_percent');
+            $table->dropColumn('admin_retention_amount');
+            $table->dropColumn('raffle_type');              //manual-automatic
+            $table->dropColumn('privacy');                  //public- private 
+            $table->dropColumn('reward_line');              //yes-no
+            $table->dropColumn('percent_line');             //percent for line reward
+            $table->dropColumn('reward_full');              //yes-no
+            $table->dropColumn('percent_full');             //percent for full reward
+            $table->dropColumn('admin_user');
+            $table->dropColumn('scheduled_date');
          
         });
     }

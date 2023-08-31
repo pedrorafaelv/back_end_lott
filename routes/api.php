@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\CardController;
 use App\Http\Controllers\Api\FichaController;
 use App\Http\Controllers\Api\GroupController;
+use App\Http\Controllers\Api\GroupFichaController;
 use App\Http\Controllers\Api\LevelController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\UserController;
@@ -54,6 +55,13 @@ Route::resource('Group', GroupController::class)->except([ 'create','edit' ]);
 
 Route::get('Group/getGroup/{group_id}', [GroupController::class, 'getGroup' ]);
 
+/**********************************   GROUPFICHAS  *******************************************/
+
+Route::resource('GroupFicha', GroupFichaController::class)->except([ 'create','edit' ]);
+
+Route::get('GroupFicha/getGroupFichas', [GroupFichaController::class, 'getGroupFichas' ]);
+Route::get('GroupFicha/getGroups/{groupficha_id}', [GroupFichaController::class, 'getGroups' ]);
+Route::get('GroupFicha/getGroupFicha/{groupficha_id}', [GroupFichaController::class, 'getGroupFicha' ]);
 
 /**********************************    USER  **********************************************/
 
@@ -61,6 +69,15 @@ Route::resource('User', RaffleController::class)->except([ 'create','edit' ]);
 
 //Obtiene los grupos en lo que se encuentra el usuario 
 Route::get('User/getGrupos/{id}', [UserController::class, 'getGrupos' ]);
+
+//Obtiene el nivel en que se encuentra el usuario 
+Route::get('User/getUserLevel/{id}', [UserController::class, 'getUserLevel' ]);
+
+//Obtiene los roles que tiene el usuario 
+Route::get('User/getUserRoles/{id}', [UserController::class, 'getUserRoles' ]); 
+
+//Obtiene los roles y nivel que tiene el usuario 
+Route::get('User/getUserPermissions/{id}', [UserController::class, 'getUserPermissions' ]);  
 
 //Obtener datos de usuario a partir del firebase
 Route::get('User/getUserByFirebase/{firebase_localId}', [UserController::class, 'getUserByFirebase' ]);
@@ -93,11 +110,14 @@ Route::get('Raffle/newFicha/{raffle_id}', [RaffleController::class, 'newFicha'])
 Route::get('Raffle/getFichas/{raffle_id}', [RaffleController::class, 'getFichas']);
 
 //obtiene los datos del sorteo
-Route::get('Raffle/getRaffle', [RaffleController::class, 'getRaffle']);
+Route::get('Raffle/getRaffle/{raffle_id}', [RaffleController::class, 'getRaffle']);
 
 //obtiene los datos del sorteo por usuario
 Route::get('Raffle/getActiveRafflesByUser/{user_id}', [RaffleController::class, 'getActiveRafflesByUser']); 
 
+//obtiene los datos detallados de los sorteos por usuario
+Route::get('Raffle/getDetailActiveRafflesByUser/{user_id}', [RaffleController::class, 'getDetailActiveRafflesByUser']); 
+ 
 //obtiene los datos del sorteo por grupo 
 Route::get('Raffle/getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']); 
 
@@ -130,3 +150,14 @@ Route::get('Raffle/checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::c
 
 //check line Winner
 Route::get('Raffle/checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
+
+// ACOOUNT
+
+//Add account
+Route::post('Account/newAccount/{user_id}/{currency_code}/{amount}/{credit}/{credit_promotion}/{deposit}/{withdrawal}/{via}/{description}/{comments}', [AccountController::class, 'store']);
+
+//Add prize
+Route::post('Account/putAward/{user_id}/{currency_code}/{raffle_id}', [AccountController::class, 'putAward']);
+
+//get currencyBalance
+Route::get('Account/getBalanceJson/{user_id}/{currency_code}', [AccountController::class, 'getBalanceJson']);

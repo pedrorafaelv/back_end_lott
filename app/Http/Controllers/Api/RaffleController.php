@@ -13,7 +13,12 @@ use App\Models\Raffle;
 use App\Models\CheckCard;
 use App\Models\CheckFull;
 use App\Models\Group;
+use App\Models\Account;
+use App\Models\FichaGroupFicha;
+use App\Models\GroupFicha;
+use App\Models\FichaRaffle;
 use App\Http\Controllers\Api\FichaController;
+use Illuminate\Database\Query\JoinClause;
 
 class RaffleController extends Controller
 {
@@ -52,6 +57,7 @@ class RaffleController extends Controller
             }
             $raffle->user_id = $request->user_id;
             $raffle->group_id = $request->group_id;
+            $raffle->groupficha_id = $request->groupficha_id;
             $raffle->total_amount= 0;
             $raffle->card_amount  = $request->card_amount;
             $raffle->minimun_play = $request->minimun_play;
@@ -130,19 +136,21 @@ class RaffleController extends Controller
             }
         } 
         if (!empty($fichas)){
-            return response()->json(['Raffle'=> $Raffle, 'ArrFichas'=> $f, 'Fichas'=> $fichas], 200); 
+            return response()->json(['message'=>'success','Raffle'=> $Raffle, 'ArrFichas'=> $f, 'Fichas'=> $fichas], 200); 
         }
-         return response()->json(['message' => 'Error to get Raffle data'],401 );
+         return response()->json(['error' => 'Error to get Raffle data'],401 );
     }
     
  /** obtiene los datos de un sorteo */
     public function getRaffle(Request $request){
 
         $raffle =  Raffle::find($request->raffle_id);
+        $groupficha = GroupFicha::find($raffle->groupficha_id); 
          if ($raffle !=""){
-             return response()->json(['message'=>'Raffle encontrado','raffle'=>$res], 200);
+             return response()->json(['message'=>'Raffle encontrado','raffle'=>$raffle, 'groupficha'=>$groupficha], 200);
          }
-        return response()->json(['message'=>'Raffle no encontrado'],400);
+
+        return response()->json(['error'=>'Raffle no encontrado'],400);
     }
 /**
  * $request->user_id
@@ -152,16 +160,53 @@ class RaffleController extends Controller
         $raffles = DB::table('raffles')
             ->join('group_user', 'raffles.group_id', '=', 'group_user.group_id')
             ->join('users','users.id','=','group_user.user_id' )
+            ->join('groupfichas','raffles.groupficha_id', '=', 'groupfichas.id')
             ->where('users.id', '=', $request->user_id )
             ->whereNull('raffles.end_date')
-            ->select('raffles.id','raffles.group_id','raffles.name')
+            ->select('raffles.id','raffles.group_id', 'raffles.name', 'raffles.card_amount', 'raffles.total_amount','groupfichas.name as groupfichas')
             ->get();
          if ($raffles !=""){
              return response()->json(['message'=>'Raffle encontrado','raffles'=>$raffles], 200);
          }
-        return response()->json(['message'=>'Raffle no encontrado'],400);
+        return response()->json(['error'=>'Raffle no encontrado'],400);
     }
 
+
+
+    /**
+ * $request->user_id
+ */
+     /** obtiene los datos de un sorteo */
+     public function getDetailActiveRafflesByUser(Request $request){
+        $fichas = DB::table('ficha_groupfichas')
+        ->select('groupficha_id', DB::raw('MIN(ficha_id) as first_ficha_id'))
+        ->groupBy('groupficha_id');
+        $descFichas= DB::table('fichas')
+        ->select('fichas.id', 'fichas.name','fichas.image','fichas.description', 'min_fichas.groupficha_id')
+        ->joinSub($fichas, 'min_fichas', function (JoinClause $join) {
+                        $join->on('fichas.id', '=', 'min_fichas.first_ficha_id'); 
+                     });
+        $raffles = DB::table('raffles')
+            ->join('group_user', 'raffles.group_id', '=', 'group_user.group_id')
+            ->join('groups', 'groups.id', '=', 'group_user.group_id')
+            ->join('users','users.id','=','group_user.user_id' )
+            ->join('groupfichas','raffles.groupficha_id', '=', 'groupfichas.id')
+            // ->join('ficha_groupfichas', 'ficha_groupfichas.groupficha_id', '=', 'raffles.groupficha_id')
+            ->joinSub($descFichas, 'fichas', function (JoinClause $join) {
+                $join->on('raffles.groupficha_id', '=', 'fichas.groupficha_id');
+                
+                 })
+            ->where('users.id', '=', $request->user_id )
+            ->whereNull('raffles.end_date')
+            ->select('raffles.id','raffles.group_id', 'raffles.name', 'raffles.card_amount', 
+            'raffles.total_amount','groupfichas.name as groupfichas', 'groups.name as nombregrupo',
+            'fichas.name as ficha_name', 'fichas.image')
+            ->get();
+         if ($raffles !=""){
+             return response()->json(['message'=>'Raffles encontrados','raffles'=>$raffles], 200);
+         }
+        return response()->json(['error'=>'Raffles no encontrados'],400);
+    }
  /**
  * $request->group_id
  */
@@ -169,8 +214,9 @@ class RaffleController extends Controller
      public function getActiveRafflesByGroup(Request $request){
         $raffles = DB::table('raffles')
             ->where('raffles.group_id', '=', $request->group_id )
+            ->join('groupfichas','raffles.groupficha_id', '=', 'groupfichas.id')
             ->whereNull('raffles.end_date')
-            ->select('raffles.id','raffles.group_id','raffles.name')
+            ->select('raffles.id','raffles.group_id','raffles.name', 'groupfichas.name as groupfichas')
             ->get();
          if ($raffles !=""){
              return response()->json(['message'=>'Raffle encontrado','raffles'=>$raffles], 200);
@@ -186,18 +232,39 @@ class RaffleController extends Controller
  * $request->user_id
  */
     public function putCard(Request $request){
+        
+        
+        // validar que el sorteo este activo
         $raffle =  Raffle::find($request->raffle_id);
-         $i = 0;
-         $cards = array();
-         $cards_raffle = $raffle->Cards;
-         if (count($cards_raffle)>0 ){
+        if($raffle->end_date){
+            return response()->json(["error"=>"The Raffle was end"], 401);
+        }
+        // validar que no esten mas de 5 fichas en el sorteo
+        $fichas_raffle = FichaRaffle::where([['raffle_id','=',$request->raffle_id]]);
+        return response()->json(["message"=>"El raffle ya tiene asignadas las 5 primeras fichas"], 401);
+
+        $count_fichas = count($fichas_raffle);
+        if ($count_fichas > 4){
+            return response()->json(["message"=>"El raffle ya tiene asignadas las 5 primeras fichas"], 401);
+        }
+        // validar la cuenta de dinero disponible del usuario
+        $account = Account::find($request->user_id);
+        if ($account->balance < $raffle->card_amount){
+            return response()->json(["error"=>"The user balance's its not enough"], 401);
+        }
+
+        // valida la disponibilidad del carton en el sorteo
+        $i = 0;
+        $cards = array();
+        $cards_raffle = $raffle->Cards;
+        if (count($cards_raffle)>0 ){
             foreach( $cards_raffle as $card){
                 $cards[$i]= $card->id;  
                 $i++;
             }
         }
         $i= count($cards) + 1;
-        // echo '<pre> $card = ';print_r($cards); echo '</pre>';
+        echo '<pre> $card = ';print_r($cards); echo '</pre>';
         if (!in_array($request->card_id, $cards)){
             $res = $raffle->Cards()->attach($request->card_id, [ 'raffle_id'=>$request->raffle_id, 
                                                                  'user_id'=>$request->user_id, 
@@ -206,7 +273,7 @@ class RaffleController extends Controller
                                                                  'updated_at'=> date("Y-m-d H:i:s")]);
             return response()->json([ 'message'=>'Card added successfully ','card'=>$request->card_id, 'raffle_id'=>$request->raffle_id], 200);
         }else {
-            return response()->json([ 'message'=>'card already in raffle ','card'=>$request->card_id],401 );
+            return response()->json([ 'error'=>'card already in raffle ','card'=>$request->card_id],401 );
         }
        
     }
@@ -255,13 +322,21 @@ class RaffleController extends Controller
 
 
     public function newFicha(Request $request){ 
-        //se debe obtener dinamicamente el numero mayor de fichas 
-        $maxFicha = 375;
+        
         //obtener las fichas de la tabla fichas_raffles
         $fichas_raffle = Raffle::find($request->raffle_id)->Fichas;
         $raffle= Raffle::find($request->raffle_id);
         $nroFicha = count($fichas_raffle);
         $i = 0;
+         //se debe obtener dinamicamente el numero mayor de fichas 
+        $groupfichas= DB::table('ficha_groupfichas')
+        ->join('fichas', 'ficha_groupfichas.ficha_id', '=', 'fichas.id')
+        ->where('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
+        ->where('fichas.active', 1)
+        ->get();
+        $maxFicha = $groupfichas->count();
+        // $maxFicha = 375;
+
         if($nroFicha >0){
             foreach ($fichas_raffle as $ficha){
                 $fichas[$i]= $ficha->id;
@@ -273,14 +348,11 @@ class RaffleController extends Controller
         $indice= count($fichas) + 1;
         for( $j = 0; $j<=$maxFicha ; $j++){
             $f = Ficha::inRandomOrder()
+            ->join('ficha_groupfichas', 'fichas.id', '=', 'ficha_groupfichas.ficha_id')
             ->where('active', 1)
+            ->where ('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
             ->first();
-           //    $f = DB::table('ficha')
-          //     ->join('ficha_groupficha', 'ficha.id', '=', 'ficha_groupficha.ficha_id')
-        //       ->where('ficha.active','=','1')
-        //       ->where ('ficha_groupficha', '=',$request->group_id )
-        //       ->inRandomOrder()
-        //       ->first();
+            //   dd($f);
             if (!in_array($f->id, $fichas)){           
                 $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$request->raffle_id,
                                                         'indice'=> $indice, 
@@ -553,9 +625,9 @@ class RaffleController extends Controller
         $raffle->start_hour= $request->start_hour;
         $res= $raffle->save();
         if ($res){
-            return response()->json($raffle, 200);
+            return response()->json(['message'=>'succefull','raffle',$raffle], 200);
         }else{
-            return response()->json(['message' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
+            return response()->json(['error' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
         }
     }
     
@@ -573,9 +645,9 @@ class RaffleController extends Controller
         $raffle->end_hour= $request->end_hour;
         $res= $raffle->save();
         if ($res){
-            return response()->json($raffle, 200);
+            return response()->json(['message'=>$raffle], 200);
         }else{
-            return response()->json(['message' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
+            return response()->json(['error' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
         }
     }
 
@@ -618,7 +690,7 @@ class RaffleController extends Controller
                 $card->combTotal = implode('|', $arr);
             }
         }
-        return response()->json(['Cards'=>$userCardsRaffle, 'Fichas'=> $fichas]);
+        return response()->json(['message'=>'success','Cards'=>$userCardsRaffle, 'Fichas'=> $fichas], 200);
      }
 
     /**

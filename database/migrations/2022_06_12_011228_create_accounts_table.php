@@ -16,7 +16,7 @@ class CreateAccountsTable extends Migration
         Schema::create('accounts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');                                          //usuario
-            $table->string('currency');                                                     //moneda
+            $table->string('currency_code');                                                //moneda
             $table->Decimal('amount', $precision = 8, $scale = 2)->nullable();              //monto actual
             $table->Decimal('credit', $precision = 8, $scale = 2)->nullable();              //credito
             $table->Decimal('credit_promotion', $precision = 8, $scale = 2)->nullable();    //creditos promocionales

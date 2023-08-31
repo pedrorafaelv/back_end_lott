@@ -14,12 +14,12 @@ class Ficha extends Model
 
     public function Cards(){
 
-        return $this->belongsToMany(Card::class);    
+        return $this->belongsToMany(Card::class);
     }
 
     public function GroupFichas(){
 
-        return $this->belongsToMany(GroupFicha::class, 'ficha_groupficha', 'ficha_id', 'groupficha_id');       
+        return $this->belongsToMany(GroupFicha::class, 'ficha_groupficha', 'ficha_id', 'groupficha_id');
     }
 
     public function Raffles(){

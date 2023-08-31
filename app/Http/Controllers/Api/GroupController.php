@@ -47,14 +47,8 @@ class GroupController extends Controller
      */
     public function show(Group $group)
     {
-        // $Grupo= Group::find($group);
-        // $result= array(
-        //                 'group' => $Group
-        //              );
-        // return response()->json($result);
+      
         return response()->json($group);
-
-        // return response()->json($group);
 
     }
 
@@ -105,7 +99,6 @@ class GroupController extends Controller
                      'group'=> $Grupo,
         );
         return response()->json($resp);
-        // return response()->json($group);
      }
     
 }

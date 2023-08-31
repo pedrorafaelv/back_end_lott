@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class AddColumnsToGroupUserTable extends Migration
+class RolesTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,8 +13,12 @@ class AddColumnsToGroupUserTable extends Migration
      */
     public function up()
     {
-        Schema::table('group_user', function (Blueprint $table) {
-            $table->text('active')->nullable();
+        Schema::create('roles', function (Blueprint $table) {
+            $table->id();
+            $table->string('role_code')->nullable();
+            $table->string('description')->nullable();
+            $table->timestamps();
+
         });
     }
 
@@ -25,8 +29,7 @@ class AddColumnsToGroupUserTable extends Migration
      */
     public function down()
     {
-        Schema::table('group_user', function (Blueprint $table) {
-            $table->dropColumn('active');
-        });
+        Schema::dropIfExists('items');
+
     }
 }

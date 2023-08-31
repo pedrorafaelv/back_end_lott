@@ -12,6 +12,7 @@ use App\Models\Card;
 use App\Models\Group;
 use App\Models\Level;
 use App\Models\Raffle;
+use App\Models\Role;
 
 class User extends Authenticatable
 {
@@ -52,10 +53,10 @@ class User extends Authenticatable
     }
      public function Groups(){
           
-         return $this->belongsToMany(Group::class);        
+         return $this->belongsToMany(Group::class);
     }     
     
-    public function levels(): BelongsToMany
+    public function levels()
     {
         return $this->belongsToMany(Level::class);
     }
@@ -65,8 +66,13 @@ class User extends Authenticatable
         return $this->hasMany(Raffle::class);
     }
     
-    public function Cards(): BelongsToMany
-    {
+    public function Cards(){
+
         return $this->belongsToMany(Card::class);
+    }
+
+    public function Roles(){
+
+        return $this->belongsToMany(Role::class);
     }
 }

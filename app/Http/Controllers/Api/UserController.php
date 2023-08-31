@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Group;
+use App\Models\Level;
 use App\Http\Controllers\Api\GroupController;
-
 
 class UserController extends Controller
 {
@@ -64,9 +64,9 @@ class UserController extends Controller
             if ($res){
                 return response()->json($user, 200);
             }else{
-                return response()->json(['message' => 'Error to create User'], 401);
+                return response()->json(['error' => 'Error to create User'], 401);
             }
-        } return response()->json(['message' => 'User duplicated'], 401);
+        } return response()->json(['error' => 'User duplicated'], 401);
     }
 
     /**
@@ -110,7 +110,7 @@ class UserController extends Controller
             $us->remember_token = $request->remember_token;
             $res= $us->save();
             return response()->json(['message' => 'User Token updated'], 200);
-        } return response()->json(['message' => 'Error to udate User'], 401);
+        } return response()->json(['error' => 'Error to udate User'], 401);
     }
 
 
@@ -129,7 +129,6 @@ class UserController extends Controller
 
         $user = User::find($request->id);
         $i = 0;
-      // dd($user->Groups);
         if (count($user->Groups)>0){
             $resp = array(
                 'date'=> date("Y-m-d H:i:s"),
@@ -146,7 +145,6 @@ class UserController extends Controller
          $g= Group::find($request->group_id);
          $user= User::find($request->user_id);
          $group_user = $user->Groups;
-        //  echo '<pre>';print_r($group_user); echo '</pre>';
          $i =0;
          foreach ($group_user as $gp ){
             $groups[$i]= $user->id;  
@@ -155,14 +153,14 @@ class UserController extends Controller
          if ($g!== null && $user !== null ){
  
              if (in_array( $request->user_id , $groups)){
-                return response()->json(['message'=> 'El usuario '. $user->name.' ya pertenece al grupo'. $g->name ], 401 );    
+                return response()->json(['error'=> 'El usuario '. $user->name.' ya pertenece al grupo'. $g->name ], 401);
              }
             $res =  $user->Groups()->attach($request->group_id);
             if ( $res !== null) {
                 return response()->json(['message'=>$res. ' El usuario '. $user->nombre .' ha sido agregado al Grupo '. $g->name],200);
             }
         } 
-         return response()->json(['message'=> 'No se pudo asociar el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 400 );
+         return response()->json(['error'=> 'No se pudo asociar el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
     }
 
     public function putOffGroup(Request $request){
@@ -170,7 +168,6 @@ class UserController extends Controller
         $g= Group::find($request->group_id);
         $user= User::find($request->user_id);
         $group_user = $user->Groups;
-       //  print_r($group_user);
         $i =0;
         foreach ($group_user as $gp ){
            $groups[$i]= $user->id;  
@@ -180,27 +177,27 @@ class UserController extends Controller
 
             if (in_array( $request->user_id , $groups)){
                 $res =  $user->Groups()->remove($request->group_id);
-                return response()->json(['message'=> 'El usuario '. $user->name.' ha sido removido del grupo'. $g->name ], 200 );    
+                return response()->json(['message'=> 'The User '. $user->name.' ha sido removido del grupo'. $g->name ], 200 );    
             }
            $res =  $user->Groups()->attach($request->group_id);
            if ( $res !== null) {
-               return response()->json(['message'=>$res. ' El usuario '. $user->nombre .' no pertenece al Grupo '. $g->name],400);
+               return response()->json(['error'=>$res. 'The user '. $user->nombre .' no pertenece al Grupo '. $g->name],401);
             }
 
        } 
-        return response()->json(['message'=> 'No se pudo remover el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
+        return response()->json(['error'=> 'No se pudo remover el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
    }
 
    public function getUserByFirebase(Request $request){
 
     $user = User::where('firebase_localId', $request->firebase_localId)->get();
-    // echo 'user en getUserByFirebase back end<pre>'; print_r($user); echo '</pre> hasta aqui';
     if ($user!= null){
-        return response()->json(['message' => 'usuario encontrado',  'user' => $user], 200);
+        return response()->json(['message' => 'usuario found',  'user' => $user], 200);
     }else{
-        return response()->json(['message' => 'usuario no encontrado'], 401);
+        return response()->json(['error' => 'user not found'], 401);
     }
    }
+
 
    public function updateDataFirebase(Request $request){
 
@@ -213,11 +210,86 @@ class UserController extends Controller
         if ($res){
             return response()->json(['message' => 'Updated user', 'user'->$user], 200);
         }else{
-            return response()->json(['message' => 'error updating user'], 401);
+            return response()->json(['error' => 'error updating user'], 401);
         }
     }else{
-         return response()->json(['message'=>'user not found'], 401);
+         return response()->json(['error'=>'user not found'], 401);
     }
    }
 
+
+   /**
+    * $request->user_id
+    */
+   public function getUserLevel(Request $request){
+
+    $user = User::find($request->id);
+    $i = 0;
+    
+    if (count($user->Levels)>0){
+        foreach ($user->Levels as $level ) {
+            $levels[$i] = $level->name;
+        }
+        $resp = array(
+            'date'=> date("Y-m-d H:i:s"),
+            'User'=> $request->id,
+            'Level'=>$levels
+        );
+        return  response()-> json(['message'=>'level found','level'=>$resp], 200);
+    }
+     return response()->json(['error'=> 'The User '.$request->id. ' has no associated levels'], 401);
+    }
+
+    /**
+    * $request->user_id
+    */
+    public function getUserRoles(Request $request){
+
+        $user = User::find($request->id);
+        $i = 0;
+        
+        if (count($user->Roles)>0){
+            foreach ($user->Roles as $role ) {
+                $roles[$i] = $roles->name;
+            }
+            $resp = array(
+                'date'=> date("Y-m-d H:i:s"),
+                'User'=> $request->id,
+                'Role'=>$role
+            );
+            return  response()-> json(['message'=>'Role found','role'=>$resp], 200);
+        }
+         return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
+    }
+
+    /**
+    * $request->user_id
+    */
+    public function getUserPermissions(Request $request){
+        $user = User::find($request->id);
+        $i = 0;
+        $roles=array();
+        if (count($user->Roles)>0){
+            foreach ($user->Roles as $role ) {
+                $roles[$i] = $role->name;
+            }
+        }
+        $i = 0;
+        $levels = array();
+        if (count($user->Levels)>0){
+            foreach ($user->Levels as $level ) {
+                $levels[$i] = $level->name;
+            }
+        }
+        $permissions = array(
+            'date'=> date("Y-m-d H:i:s"),
+            'User'=> $request->id,
+            'Level'=>$levels,
+            'Role'=>$roles
+        );
+         return  response()-> json(['message'=>'Permissions found','Permissions'=>$permissions], 200);
+        //  return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
+    } 
+
 }
+
