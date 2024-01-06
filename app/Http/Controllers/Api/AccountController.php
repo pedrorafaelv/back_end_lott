@@ -115,7 +115,8 @@ class AccountController extends Controller
         if($balance){
             return response()->json(['message'=>'balance','balance'=>$balance, 'currency_code'=>$request->currency_code], 200);
         }
-        return response()->json(['error'=>'there are no movements in that currency', 'balance'=>0, 'currency_code'=>$request->currency_code], 200);
+         $balance = array();
+        return response()->json(['error'=>'there are no movements in that currency', 'balance'=>$balance, 'currency_code'=>$request->currency_code], 200);
      }
 
 /**

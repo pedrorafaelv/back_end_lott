@@ -16,9 +16,11 @@ class UserController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $users= User::all();
+
+        return response()->json(['message'=>'usarios encontrados', 'usuarios'=> $users ]);
     }
 
     /**
@@ -62,12 +64,40 @@ class UserController extends Controller
             $user->firebase_last_connection = $request->firebase_last_connection;
             $res = $user->save();
             if ($res){
-                return response()->json($user, 200);
+                return response()->json(['message'=>'User created','user'=>$user], 200);
             }else{
                 return response()->json(['error' => 'Error to create User'], 401);
             }
         } return response()->json(['error' => 'User duplicated'], 401);
     }
+
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function newUser(Request $request)
+    {
+         $us = "";
+        $us = User::where('email', $request->email)->get();
+        if ($us !=""){
+            $user = new User();
+            $user->name = $request->name;
+            $user->email = $request->email;
+            $user->password = $request->pass;
+            $user->firebase_localId = $request->firebase_localId;
+            $user->firebase_token = $request->firebase_token;
+            $user->firebase_last_connection = date("Y-m-d H:i:s");
+            $res = $user->save();
+            if ($res){
+                return response()->json(['message'=>'User created','user'=>$user], 200);
+            }else{
+                return response()->json(['error' => 'Error to create User'], 401);
+            }
+        } return response()->json(['error' => 'User duplicated'], 401);
+    }
+
 
     /**
      * Display the specified resource.
@@ -261,6 +291,32 @@ class UserController extends Controller
         }
          return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
     }
+
+    /**
+    * $request->user_id
+    */
+    public function getUserEmailConfirm(Request $request){
+
+      $user = User::where('email',$request->email)->get();
+      if( isset($user) ){
+        //   echo '<pre>';print_r($user[0].'###### '.property_exists( $user[0], 'email_verified_at'). ' #####'); echo '<pre>';
+        if ($user[0]->id != "" ){
+            if( $user[0]->email_verified_at != ""){
+                $resp = array(
+                'date'=> date("Y-m-d H:i:s"),
+                'User'=> $user[0]->name,
+                'EmailConfirm'=>$user[0]->email_verified_at,
+                );
+                return  response()-> json(['message'=>'email Confirmed','emailConfirm'=>$resp], 200);
+            }
+            return response()->json(['error'=> 'the user '.$request->email.' does not have the confirmed email'], 401);
+         }
+       }
+      return response()->json(['error'=> 'The User '.$request->email. ' does not exist'], 401);
+        // $i = 0;
+        
+    }
+
 
     /**
     * $request->user_id

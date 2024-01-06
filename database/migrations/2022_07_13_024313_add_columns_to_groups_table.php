@@ -14,8 +14,10 @@ class AddColumnsToGroupsTable extends Migration
     public function up()
     {
         Schema::table('groups', function (Blueprint $table) {
-            $table->after('active', function($table){ 
-                $table->string('privacy')->nullable();         
+                $table->after('active', function($table){
+                $table->string('privacy')->nullable();
+                $table->string('user_id')->nullable();
+                $table->string('user_admin')->nullable();
             });
         });
     }
@@ -28,7 +30,9 @@ class AddColumnsToGroupsTable extends Migration
     public function down()
     {
         Schema::table('groups', function (Blueprint $table) {
-            $table->dropColumn('privacy');         
+            $table->dropColumn('privacy');
+            $table->dropColumn('user_id');
+            $table->dropColumn('user_admin');
         });
     }
 }

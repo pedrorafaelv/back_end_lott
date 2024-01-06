@@ -36,9 +36,26 @@ class GroupController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $gr = "";
+        $gr = Group::where('name', $request->name)->get();
+        if ($gr !=""){
+            $group = new Group();
+            $group->user_id = $request->user_id;
+            $group->user_admin = $request->user_admin;
+            $group->name = $request->name;
+            $group->description = $request->description;
+            $group->active = $request->active;
+            $group->privacy = $request->privacy;
+            $group->start_date = $request->start_date;
+            $group->end_date = $request->end_date;
+            $res = $group->save();
+            if ($res){
+                return response()->json(['message'=>'Group created','group'=>$group], 200);
+            }else{
+                return response()->json(['error' => 'Error to create Group'], 401);
+            }
+        } return response()->json(['error' => 'Group duplicated'], 401);
     }
-
     /**
      * Display the specified resource.
      *

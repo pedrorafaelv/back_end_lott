@@ -53,14 +53,21 @@ Route::post('ficha/{name}/{active}', [FichaController::class, 'store']);
 
 Route::resource('Group', GroupController::class)->except([ 'create','edit' ]);
 
+//obtener un grupo 
 Route::get('Group/getGroup/{group_id}', [GroupController::class, 'getGroup' ]);
+
+//crear un grupo 
+Route::post('Group/NewGroup/{user_id}/{user_admin}/{name}/{description}/{active}/{privacy}/{start_date}/{end_date}', [GroupController::class, 'store' ]);
+
 
 /**********************************   GROUPFICHAS  *******************************************/
 
 Route::resource('GroupFicha', GroupFichaController::class)->except([ 'create','edit' ]);
 
 Route::get('GroupFicha/getGroupFichas', [GroupFichaController::class, 'getGroupFichas' ]);
+
 Route::get('GroupFicha/getGroups/{groupficha_id}', [GroupFichaController::class, 'getGroups' ]);
+
 Route::get('GroupFicha/getGroupFicha/{groupficha_id}', [GroupFichaController::class, 'getGroupFicha' ]);
 
 /**********************************    USER  **********************************************/
@@ -79,6 +86,9 @@ Route::get('User/getUserRoles/{id}', [UserController::class, 'getUserRoles' ]);
 //Obtiene los roles y nivel que tiene el usuario 
 Route::get('User/getUserPermissions/{id}', [UserController::class, 'getUserPermissions' ]);  
 
+//Obtiene los roles y nivel que tiene el usuario 
+Route::get('User/getUserEmailConfirm/{email}', [UserController::class, 'getUserEmailConfirm' ]); 
+
 //Obtener datos de usuario a partir del firebase
 Route::get('User/getUserByFirebase/{firebase_localId}', [UserController::class, 'getUserByFirebase' ]);
 
@@ -90,6 +100,15 @@ Route::put('User/putGroup/{group_id}/{user_id}', [UserController::class, 'putGro
 
 // quitar un usuario de un grupo
 Route::put('User/putOffGroup/{group_id}/{user_id}', [UserController::class, 'putOffGroup' ]);
+
+// listado de usuarios 
+Route::get('User/usersList/{user_id}', [UserController::class, 'index' ]);
+
+//crear un Usuario 
+Route::post('User/newUser/{email}/{name}/{pass}/{firebase_localId}/{firebase_token}', [UserController::class, 'newUser' ]);
+
+//Guardar datos de usuario
+Route::post('User/store/{email}/{name}/{email_verified_at}/{remember_token}/{last_name}/{birth_date}/{document}/{gender}/{phone}/{country}/{state}/{city}/{address}/{firebase_localId}/{firebase_token}/{firebase_last_connection}/{start_date}/{end_date}', [UserController::class, 'store' ]);
 
 
 /**********************************   LEVEL  ***********************************************/
@@ -152,12 +171,16 @@ Route::get('Raffle/checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::c
 Route::get('Raffle/checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
 
 // ACOOUNT
+/**********************************   ACCOUNT  **********************************************/
 
 //Add account
 Route::post('Account/newAccount/{user_id}/{currency_code}/{amount}/{credit}/{credit_promotion}/{deposit}/{withdrawal}/{via}/{description}/{comments}', [AccountController::class, 'store']);
 
 //Add prize
 Route::post('Account/putAward/{user_id}/{currency_code}/{raffle_id}', [AccountController::class, 'putAward']);
+
+//Add bet
+Route::post('Account/putBet/{user_id}/{currency_code}/{raffle_id}', [AccountController::class, 'putBet']);
 
 //get currencyBalance
 Route::get('Account/getBalanceJson/{user_id}/{currency_code}', [AccountController::class, 'getBalanceJson']);
