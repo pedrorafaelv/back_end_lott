@@ -20,7 +20,7 @@ class UserController extends Controller
     {
         $users= User::all();
 
-        return response()->json(['message'=>'usarios encontrados', 'usuarios'=> $users ]);
+        return response()->json(['message'=>'usarios encontrados', 'usuarios'=> $users ],200);
     }
 
     /**
