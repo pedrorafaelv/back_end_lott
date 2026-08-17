@@ -4,10 +4,11 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Ficha;
+use Illuminate\Support\Facades\DB;  
 
 class FichaSeeder extends Seeder
 {
-    /**
+    /** 
      * Run the database seeds.
      *
      * @return void
@@ -66,6 +67,8 @@ class FichaSeeder extends Seeder
 
     public function run()
     {
+        // Deshabilitar verificaciones de clave foránea
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         Ficha::truncate();
         foreach( $this->iconos as $key => $icono){
             Ficha::create([

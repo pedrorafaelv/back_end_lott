@@ -19,9 +19,18 @@ class CardController extends Controller
     public function index()
     {
          //  TODO: OBTENER LOS CARD DEPENDIENDO DEL GRUPO  DE FICHAS
+        $result = [];
         $cards= Card::get();
         // dd($cards);
         $i =0;
+        if (count($cards)==0){
+            return response()->json([
+                'success' => false,
+                'error' => 'Sorteo no encontrado',
+                'code' => 'ERR-006',
+                'message'=> 'Not cards available'
+                ], 401);
+        }
         foreach ($cards as $key => $card) {
              $fichas= explode('|', $card->combTotal);
              $r=0;
@@ -33,11 +42,16 @@ class CardController extends Controller
                               'fichas' => $f);
             $i++;
         }
+        
         $resp = array(
+            'success' => true,
+            'error' => false,
+            'code' => 'OK-001',
             'Date'=> date("Y-m-d H:i:s"),
             'Group'=> 1,
             'Card'=>$cards,
-            'Records'=>$result
+            'Records'=>$result,
+            'message'=> 'success'
         );
         return response()->Json($resp);
     }

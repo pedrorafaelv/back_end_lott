@@ -4,9 +4,14 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
 
 class UserFactory extends Factory
 {
+    protected $model = User::class;
+
     /**
      * Define the model's default state.
      *
@@ -20,6 +25,8 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             'remember_token' => Str::random(10),
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 
@@ -36,4 +43,13 @@ class UserFactory extends Factory
             ];
         });
     }
+    public function admin()
+{
+    return $this->state(function (array $attributes) {
+        return [
+            'name' => 'Administrador',
+            'email' => 'admin@loteria.com',
+        ];
+    });
+}
 }

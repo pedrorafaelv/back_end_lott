@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Ficha;
 use App\Models\Card;
+use Illuminate\Support\Facades\DB;
 
 class CardSeeder extends Seeder
 {
@@ -15,6 +16,8 @@ class CardSeeder extends Seeder
      */
     public function run()
     {
+        // Deshabilitar verificaciones de clave foránea
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         Card::truncate(); 
         $a=0;
         $array_fichas=array();

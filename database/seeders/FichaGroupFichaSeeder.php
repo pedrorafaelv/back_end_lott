@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\FichaGroupFicha;
+use Illuminate\Support\Facades\DB;  
+
 
 class FichaGroupFichaSeeder extends Seeder
 {
@@ -46,6 +48,8 @@ class FichaGroupFichaSeeder extends Seeder
      */
     public function run()
     {
+        // Deshabilitar verificaciones de clave foránea
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         FichaGroupFicha::truncate();
         foreach( $this->grupo1 as $key => $icono){
             FichaGroupFicha::create([
