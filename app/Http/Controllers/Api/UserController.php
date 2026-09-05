@@ -159,15 +159,22 @@ class UserController extends Controller
 
         $user = User::find($request->id);
         $i = 0;
-        if (count($user->Groups)>0){
-            $resp = array(
-                'date'=> date("Y-m-d H:i:s"),
-                'User'=> $request->id,
-                'Group'=>$user->Groups
-            );
-            return  response()-> json($resp);
+        if ($user->Groups != null){
+            if (count($user->Groups)>0){
+                $resp = array(
+                    'date'=> date("Y-m-d H:i:s"),
+                    'User'=> $request->id,
+                    'Group'=>$user->Groups,
+                    'success' => true,
+                    'error' => 'not found',
+                    'code' => 'ERR-000',
+                );
+                return  response()-> json($resp,200);
+            }   
         }
-         return response()->json(['message'=> 'El usuario '.$request->id. ' No tiene Grupos asociados'], 400);  
+         return response()->json(['message'=> 'El usuario '.$request->id. ' No tiene Grupos asociados','success' => false,
+                                'error' => 'true',
+                                'code' => 'ERR-016',], 400);  
     }
 
     public function putGroup(Request $request){

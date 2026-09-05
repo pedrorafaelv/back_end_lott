@@ -94,14 +94,15 @@ Route::prefix('raffle')->group(function () {
     Route::get('getNewRecord/{raffle_id}', [RaffleController::class, 'getNewRecord']);
     Route::get('newFicha/{raffle_id}', [RaffleController::class, 'newFicha']);
     Route::get('getFichas/{raffle_id}', [RaffleController::class, 'getFichas']);
-    Route::get('getRaffle/{raffle_id}', [RaffleController::class, 'getRaffle']);
+    Route::get('getRaffleDetails/{raffle_id}', [RaffleController::class, 'getRaffleDetails']);
     Route::get('getActiveRafflesByUser/{user_id}', [RaffleController::class, 'getActiveRafflesByUser']);
     Route::get('getDetailActiveRafflesByUser/{user_id}', [RaffleController::class, 'getDetailActiveRafflesByUser']);
     Route::get('getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']);
     Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
+    Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
     Route::get('getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
-    Route::post('checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
-    Route::post('checkFullWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullWinner']);
+    Route::get('getAvailableCardsByRaffle',[RaffleController::class, 'getAvailableCardsByRaffle']);
+    // Route::post('checkFullWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullWinner']);
     Route::post('newRaffle', [RaffleController::class, 'store']); // Cambiado para usar un solo endpoint
     Route::post('setStart/{raffle_id}/{start_date}/{start_hour}', [RaffleController::class, 'setStart']);
     Route::post('endRaffle/{raffle_id}/{end_date}/{end_hour}', [RaffleController::class, 'endRaffle']);
@@ -110,16 +111,10 @@ Route::prefix('raffle')->group(function () {
     Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
 });
 
-
-
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();
 // });
-
-
 // Route::resource('Account', AccountController::class)->except([ 'create','edit' ]);
-
-
 
 // /**********************************   CARD **************************************************/
 // Route::resource('Card', CardController::class)->except([ 'edit' ]);

@@ -26,7 +26,7 @@ class CardController extends Controller
         if (count($cards)==0){
             return response()->json([
                 'success' => false,
-                'error' => 'Sorteo no encontrado',
+                'error' => true,
                 'code' => 'ERR-006',
                 'message'=> 'Not cards available'
                 ], 401);
@@ -125,21 +125,57 @@ class CardController extends Controller
         //
     }
 
+   /**
+     * get the cards in the card's table where not in at a raffle.
+     *
+      * @param  \App\Models\card  $card
+     * @return \Illuminate\Http\Response
+     */ 
+
     public function getAvailableCards(Request $request){
 
-         $AvailableCards = DB::table('cards')
-         ->whereNotIn('id', DB::table('card_raffle')
-         ->where ('card_raffle.raffle_id', '=', $request->raffle_id)
-         ->select('card_raffle.card_id') )
-         ->select('*')
-         ->get();
-         if (count($AvailableCards)>0){
-             return response()->Json(['message'=> 'Available cards' ,'Card'=>$AvailableCards], 200);
-         }else{
-            return response()->json(['message'=> 'Not cards available'], 401);
-         }
+    // 1. Ver el SQL completo con los bindings
+    // $query = DB::table('cards')
+    //     ->leftJoin('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+    //     ->where('card_raffle.raffle_id', '!=', $request->raffle_id)
+    //     ->orWhereNull('card_raffle.raffle_id')
+    //     ->select('cards.*')
+    //     ->distinct();
+    // 🔍 MOSTRAR LA QUERY SQL
+    // $sql = $query->toSql();
+    // $bindings = $query->getBindings();
+    
+    // dd(['sql' => $sql,
+    //     'bindings' => $bindings,
+    //     'full_query' => vsprintf(str_replace('?', "'%s'", $sql), $bindings)
+    // ]);
 
-     }
+        $AvailableCards = DB::table('cards')
+            ->leftJoin('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+            ->where('card_raffle.raffle_id', '!=', $request->raffle_id)
+            ->orWhereNull('card_raffle.raffle_id')
+            ->select('cards.*')
+            ->distinct()
+            ->get();
+
+        if (count($AvailableCards) > 0) {
+            return response()->json([
+                'message' => 'Available cards',
+                'success' => true,
+                'error' => 'cards',
+                'code' => 'OK-000',
+                'Card' => $AvailableCards
+            ], 200);
+        }
+
+        return response()->json([
+            'message' => 'Not cards available',
+            'success' => false,
+            'error' => true,
+            'code' => 'ERR-021'
+        ], 404);
+
+    }
     
      public function getAvailableCardsByGroup(Request $request){
 

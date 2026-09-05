@@ -142,29 +142,15 @@ class RaffleController extends Controller
     }
     
  /** obtiene los datos de un sorteo */
-    public function getRaffleDetails(Request $request){
+    public function getRaffle(Request $request){
 
         $raffle =  Raffle::find($request->raffle_id);
         $groupficha = GroupFicha::find($raffle->groupficha_id); 
          if ($raffle !=""){
-             return response()->json(['success'=>true,
-                                      'error'=>false,
-                                      'code'=>'OK-000',
-                                      'message'=>'Raffle encontrado',
-                                      'data'=>
-                                      [
-                                      'raffle'=>$raffle,
-                                      'groupficha'=>$groupficha
-                                      ],
-                                      'date'=> date("Y-m-d H:i:s")
-                                      ], 200);
+             return response()->json(['message'=>'Raffle encontrado','raffle'=>$raffle, 'groupficha'=>$groupficha], 200);
          }
 
-        return response()->json([
-            'success'=>false,
-            'code'=>'ERR-001',
-            'error'=>'Raffle not found',
-            'message'=>'Nose encontro el sorteo'],404);
+        return response()->json(['error'=>'Raffle no encontrado'],400);
     }
 /**
  * $request->user_id
@@ -489,404 +475,139 @@ public function cancelBet(Request $request)
         }
     }
 
-
-    // private function newFicha(Request $request){ 
-        
-    //     //obtener las fichas de la tabla fichas_raffles
-    //     $fichas_raffle = Raffle::find($request->raffle_id)->Fichas;
-    //     $raffle= Raffle::find($request->raffle_id);
-    //     $nroFicha = count($fichas_raffle);
-    //     $i = 0;
-    //      //se debe obtener dinamicamente el numero mayor de fichas 
-    //     $groupfichas= DB::table('ficha_groupfichas')
-    //     ->join('fichas', 'ficha_groupfichas.ficha_id', '=', 'fichas.id')
-    //     ->where('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
-    //     ->where('fichas.active', 1)
-    //     ->get();
-    //     $maxFicha = $groupfichas->count();
-    //     // $maxFicha = 375;
-
-    //     if($nroFicha >0){
-    //         foreach ($fichas_raffle as $ficha){
-    //             $fichas[$i]= $ficha->id;
-    //             $i++;
-    //         }
-    //     }else{
-    //         $fichas = array();
-    //     } 
-    //     $indice= count($fichas) + 1;
-    //     for( $j = 0; $j<=$maxFicha ; $j++){
-    //         $f = Ficha::inRandomOrder()
-    //         ->join('ficha_groupfichas', 'fichas.id', '=', 'ficha_groupfichas.ficha_id')
-    //         ->where('active', 1)
-    //         ->where ('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
-    //         ->first();
-    //         //   dd($f);
-    //         if (!in_array($f->id, $fichas)){           
-    //             $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$request->raffle_id,
-    //                                                     'indice'=> $indice, 
-    //                                                     'created_at'=>date("Y-m-d H:i:s"), 
-    //                                                     'updated_at'=> date("Y-m-d H:i:s")]);
-    //             return $f; 
-    //         }
-    //     }
-    //  }
-      
-    
-     /*
-     * 
-    //  * @param  Request $request
-    //  * @return \Illuminate\Http\Response
-     *
-     */
-    // function getNewRecord(Request $request){
-    //     //Obtener el sorteo
-    //      $lineWinner = "0";
-    //      $fullWinner = "0";
-    //     $r = Raffle::find($request->raffle_id); 
-    //     //verificar que el sorteo no esté cerrado
-    //     if ( $r->end_date !== ""){    
-    //         //obtener nueva ficha
-    //         $ficha = $this->newFicha($request);
-    //         //verificar que el sorteo tenga ganador de linea o lleno
-    //         if ($r->reward_line === 1 && ($r->winner == ""|| $r->winner == null) ){
-    //             // dd('$r', $r);
-    //             //verificar ganador de línea
-    //             $lineWinner = $this->checkLineWinner($request->raffle_id, $ficha->id );
-    //             // guardar el line winner en el registro del raffle
-    //             if($lineWinner != "" && ($r->winner =="" || $r->winner==null)){
-    //                 $r->winner = $lineWinner;
-    //                 $r->save();
-    //                  if ($r->reward_full ==""|| $r->reward_full == null){
-    //                     $this->endRaffle($request);
-    //                     return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=> $lineWinner, 'fullWinner' => ""], 200);
-    //                  }
-    //             }
-    //         }
-    //         if ($r->reward_full == 1){
-    //             //verificar si tiene ganador lleno
-    //             $fullWinner = $this->checkFullW($r->id, $ficha->id);
-    //             if($fullWinner != ""){
-    //                 $r->full_winner =  $fullWinner;
-    //                 $this->endRaffle($request); 
-    //                 return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=>$lineWinner ,'fullWinner'=>$fullWinner], 200);
-    //             }
-    //            // guardar el line winner en el registro del raffle
-    //         }
-    //         return response()->json(['raffle'=>$r, 'ficha'=> $ficha], 200);  
-    //     }else{
-    //         return response()->json(['message' => 'End Raffle'], 401);
-    //     }
-    // }
-
-
-   /** codigo optimizado por deepseek  */
-
-       /**
-     * ✅ ENDPOINT PÚBLICO - Obtener nueva ficha para el sorteo
+   /**
      * 
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\Response
+     * raffle_id
      */
-    public function getNewRecord(Request $request)
-    {
-        try {
-            // 1. Validar que existe el sorteo
-            $raffle = Raffle::find($request->raffle_id);
-            
-            if (!$raffle) {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-006',
-                    'message' => 'Raffle not found'
-                ], 404);
-            }
 
-            // 2. Validar que el sorteo NO esté cerrado
-            if (($raffle->end_date && now()->gt($raffle->end_date))&& $raffle->end_date != null && $raffle->end_date != "" &&$raffle->end_date !="0000-00-00 00:00:00") {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-009',
-                    'data' => [
-                        'raffle_id' => $raffle->id,
-                        'end_date' => $raffle->end_date
-                    ],
-                    'message' => 'Raffle has already ended'
-                ], 409);
-            }
-
-            // 3. Validar que el sorteo YA HAYA INICIADO
-            if (!$raffle->start_date || now()->lt($raffle->start_date)) {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-023',
-                    'message' => 'Raffle has not started yet',
-                    'start_date' => $raffle->start_date
-                ], 409);
-            }
-
-            // 4. Validar que haya al menos un tipo de premio habilitado
-            if (($raffle->reward_line == 0 || $raffle->reward_line == null)  &&  ($raffle->reward_full==0 || $raffle->reward_full == null) ) {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-026',
-                    'message' => 'Raffle has no prizes enabled (reward_line and reward_full are disabled)',
-                    'reward_line' => $raffle->reward_line,
-                    'reward_full' => $raffle->reward_full
-                ], 409);
-            }
-
-            // 5. ✅ Si solo hay premio de línea 
-            //    El sorteo termina cuando hay un ganador de línea
-            if ($raffle->reward_line != 0 && ($raffle->reward_full == 0 || $raffle->reward_full == null)) {
-                if ($raffle->winner) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => true,
-                        'code' => 'ERR-024',
-                        'message' => 'Raffle already has a line winner and has ended',
-                        'winner' => $raffle->winner
-                    ], 409);
-                }
-            }
-
-            // 6. ✅ Si hay premio de full (reward_full != 0) - CON o SIN línea
-            //    El sorteo SOLO termina con cartón lleno, aunque haya ganador de línea
-            if ($raffle->reward_full == 1) {
-                if ($raffle->full_winner) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => true,
-                        'code' => 'ERR-025',
-                        'message' => 'Raffle already has a full winner and has ended',
-                        'full_winner' => $raffle->full_winner
-                    ], 409);
-                }
-            }
-
-            // 7. Obtener una nueva ficha
-            $result = $this->assignNextFicha($request->raffle_id);
-            
-            if (!$result['success']) {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-002',
-                    'message' => $result['message']
-                ], 404);
-            }
-
-            $ficha = $result['ficha'];
-            $lineWinner = null;
-            $fullWinner = null;
-            $raffleClosed = false;
-            $winnersFound = [];
-
-            // 8. ✅ Verificar ganador de línea SOLO si está habilitado
-            if (($raffle->reward_line!= 0 || $raffle_reward_line != null) && !$raffle->winner) {
-                $lineWinner = $this->checkLineWinner($request->raffle_id, $ficha->id);
-                if ($lineWinner) {
-                    $raffle->winner = $lineWinner;
-                    $raffle->save();
-                    $winnersFound[] = 'line';
-                    
-                    // ✅ Si SOLO hay premio de línea (reward_full = 0 o NULL), el sorteo termina
-                    if ($raffle->reward_full !=0 && $raffle->reward_full != null) {
-                        $raffleClosed = true;
-                    } else {
-                        // ✅ Si también hay premio de full, el sorteo CONTINÚA
-                        $raffleClosed = false;
-                    }
-                }
-            }
-
-            // 9. ✅ Verificar ganador de cartón lleno SOLO si está habilitado
-            if ($raffle->reward_full != 0 && $raffle->reward_full != null && !$raffle->full_winner) {
-                $fullWinner = $this->checkFullW($raffle->id, $ficha->id);
-                if ($fullWinner) {
-                    $raffle->full_winner = $fullWinner;
-                    $raffle->save();
-                    $winnersFound[] = 'full';
-                    
-                    // ✅ SIEMPRE que hay full winner, el sorteo termina
-                    $raffleClosed = true;
-                }
-            }
-
-            // 10. Si hay ganador y el sorteo debe cerrarse, cerrarlo
-            if ($raffleClosed) {
-                $this->closeRaffle($request->raffle_id);
-            }
-
-            // 11. Recargar el modelo
-            $raffle->refresh();
-
-            // 12. Determinar el mensaje según el tipo de ganador
-            $message = 'Ficha asignada correctamente';
-            if ($raffleClosed) {
-                if (in_array('full', $winnersFound)) {
-                    $message = '🎉 Sorteo finalizado - Ganador de CARTÓN LLENO';
-                } elseif (in_array('line', $winnersFound) && $raffle->reward_full != 1) {
-                    $message = '🎉 Sorteo finalizado - Ganador de LÍNEA';
-                }
-            } else {
-                if (in_array('line', $winnersFound) && $raffle->reward_full == 1) {
-                    $message = '✅ Ganador de LÍNEA registrado. El sorteo CONTINÚA hasta tener CARTÓN LLENO';
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'error' => false,
-                'code' => 'OK-000',
-                'message' => $message,
-                'data' => [
-                    'raffle' => [
-                        'id' => $raffle->id,
-                        'name' => $raffle->name,
-                        'status' => $raffle->end_date ? 'closed' : 'active',
-                        'reward_line' => $raffle->reward_line,
-                        'reward_full' => $raffle->reward_full,
-                        'line_winner' => $raffle->winner,
-                        'full_winner' => $raffle->full_winner,
-                        'total_fichas' => $raffle->Fichas()->count(),
-                        'is_closed' => $raffleClosed
-                    ],
-                    'ficha' => $ficha,
-                    'winners' => [
-                        'line' => $lineWinner,
-                        'full' => $fullWinner
-                    ]
-                ]
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-500',
-                'message' => 'Error processing request: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * 🔒 MÉTODO PRIVADO - Asignar una nueva ficha al sorteo
-     */
-    private function assignNextFicha($raffleId)
-    {
-        try {
-            DB::beginTransaction();
-
-            $raffle = Raffle::find($raffleId);
-            
-            if (!$raffle) {
-                return ['success' => false, 'message' => 'Raffle not found'];
-            }
-
-            $fichasAsignadas = $raffle->Fichas()->pluck('fichas.id')->toArray();
-            $indice = count($fichasAsignadas) + 1;
-
-            $groupFichas = DB::table('ficha_groupfichas')
-                ->join('fichas', 'ficha_groupfichas.ficha_id', '=', 'fichas.id')
-                ->where('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id)
-                ->where('fichas.active', 1)
-                ->pluck('fichas.id')
-                ->toArray();
-//  dd($groupFichas);
-            if (empty($groupFichas)) {
-                return ['success' => false, 'message' => 'No fichas available in this group', $groupFichas];
-            }
-
-            $fichasDisponibles = array_diff($groupFichas, $fichasAsignadas);
-
-            if (empty($fichasDisponibles)) {
-                return ['success' => false, 'message' => 'No available fichas for this raffle'];
-            }
-
-            $fichaId = $fichasDisponibles[array_rand($fichasDisponibles)];
-            $ficha = Ficha::find($fichaId);
-
-            if (!$ficha) {
-                return ['success' => false, 'message' => 'Selected ficha not found'];
-            }
-
-            $raffle->Fichas()->attach($fichaId, [
-                'raffle_id' => $raffleId,
-                'indice' => $indice,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            DB::commit();
-
-            return ['success' => true, 'ficha' => $ficha];
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return ['success' => false, 'message' => 'Error assigning ficha: ' . $e->getMessage()];
-        }
-    }
-
-    /**
-     * 🔒 MÉTODO PRIVADO - Cerrar el sorteo
-     */
-    private function closeRaffle($raffleId)
-    {
-        try {
-            $raffle = Raffle::find($raffleId);
-            if ($raffle) {
-                $raffle->end_date = now();
-                $raffle->save();
-                return true;
-            }
-            return false;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-    /**
-     * ENDPOINT PÚBLICO - Finalizar el sorteo manualmente
-     */
-    public function endRaffle(Request $request)
-    {
-        $raffle = Raffle::find($request->raffle_id);
+    public function newFicha(Request $request){ 
         
-        if (!$raffle) {
+        //obtener las fichas de la tabla fichas_raffles
+        $fichas_raffle = Raffle::find($request->raffle_id)->Fichas;
+        $raffle= Raffle::find($request->raffle_id);
+        $nroFicha = count($fichas_raffle);
+        $i = 0;
+         //se debe obtener dinamicamente el numero mayor de fichas 
+        $groupfichas= DB::table('ficha_groupfichas')
+        ->join('fichas', 'ficha_groupfichas.ficha_id', '=', 'fichas.id')
+        ->where('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
+        ->where('fichas.active', 1)
+        ->get();
+        dd($groupfichas);
+        if (!$groupfichas){
             return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-006',
-                'message' => 'Raffle not found'
-            ], 404);
+                    'success' => false,
+                    'error'   => true,
+                    'code'    => 'ERR-022',
+                    'date'    => now(),
+                    'message' => 'NO groupFichas found'], 404);
         }
+        $maxFicha = $groupfichas->count();
+        // $maxFicha = 375;
 
-        if ($raffle->end_date) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-009',
-                'message' => 'Raffle is already closed'
-            ], 409);
+        if($nroFicha >0){
+            foreach ($fichas_raffle as $ficha){
+                $fichas[$i]= $ficha->id;
+                $i++;
+            }
+        }else{
+            $fichas = array();
+        } 
+        $indice= count($fichas) + 1;
+        for( $j = 0; $j<=$maxFicha ; $j++){
+            $f = Ficha::inRandomOrder()
+            ->join('ficha_groupfichas', 'fichas.id', '=', 'ficha_groupfichas.ficha_id')
+            ->where('active', 1)
+            ->where ('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
+            ->first();
+            //   dd($f);
+            if(!$f){
+                return response()->json([
+                    'success' => false,
+                    'error'   => true,
+                    'code'    => 'ERR-02',
+                    'date'    => now(),
+                    'message' => 'No hay fichas disponibles para este sorteo'], 401);
+            }
+            if (!in_array($f->id, $fichas)){           
+                $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$request->raffle_id,
+                                                        'indice'=> $indice, 
+                                                        'created_at'=>date("Y-m-d H:i:s"), 
+                                                        'updated_at'=> date("Y-m-d H:i:s")]);
+                return response()->json([
+                    'success' => true,
+                    'error'   => false,
+                    'code'    => 'SUCCESS-01',
+                    'date'    => now(),
+                    'message' => 'Ficha asignada correctamente',
+                    'ficha'   => $f
+                ], 200);
+            }
         }
-
-        $raffle->end_date = now();
-        $raffle->save();
-
-        return response()->json([
-            'success' => true,
-            'error' => false,
-            'code' => 'OK-000',
-            'message' => 'Raffle ended successfully',
-            'raffle' => $raffle
-        ], 200);
+     }
+      
+    
+     /**
+     * 
+     * @param  Request $request
+     * @return \Illuminate\Http\Response
+     *
+     */
+    function getNewRecord(Request $request){
+        //Obtener el sorteo
+         $lineWinner = "0";
+         $fullWinner = "0";
+        $r = Raffle::find($request->raffle_id); 
+        //verificar que el sorteo no esté cerrado
+        if ( $r->end_date !== ""){    
+            //obtener nueva ficha
+            $ficha = $this->newFicha($request);
+            //verificar que el sorteo tenga ganador de linea o lleno
+            if ($r->reward_line === 1 && ($r->winner == ""|| $r->winner == null) ){
+                // dd('$r', $r);
+                //verificar ganador de línea
+                $lineWinner = $this->checkLineWinner($request->raffle_id, $ficha->id );
+                // guardar el line winner en el registro del raffle
+                if($lineWinner != "" && ($r->winner =="" || $r->winner==null)){
+                    $r->winner = $lineWinner;
+                    $r->save();
+                     if ($r->reward_full ==""|| $r->reward_full == null){
+                        $this->endRaffle($request);
+                        return response()->json ([ 'raffle' =>$r, 
+                                                   'ficha'=> $ficha, 
+                                                   'lineWinner'=> $lineWinner,
+                                                   'message'=>'line winner found',
+                                                   'success'=> true,
+                                                   'code'=>'OK-000',
+                                                   'fullWinner' => ""], 200);
+                     }
+                }
+            }
+            if ($r->reward_full == 1){
+                //verificar si tiene ganador lleno
+                $fullWinner = $this->checkFullW($r->id, $ficha->id);
+                if($fullWinner != ""){
+                    $r->full_winner =  $fullWinner;
+                    $this->endRaffle($request); 
+                    return response()->json ([  'success'=> true,
+                                                'error'=> false,
+                                                'code'=> 'OK-000',
+                                                'message'=> 'full winner found',
+                                                'raffle' =>$r, 
+                                                'ficha'=> $ficha,
+                                                'lineWinner'=>$lineWinner ,
+                                                'fullWinner'=>$fullWinner], 200);
+                }
+               // guardar el line winner en el registro del raffle
+            }
+            return response()->json(['raffle'=>$r, 'ficha'=> $ficha], 200);  
+        }else{
+            return response()->json(['message' => 'End Raffle'], 401);
+        }
     }
 
-    // Fin de código optimizado con deepseek )
 
     /**
      * 
@@ -1108,7 +829,7 @@ public function cancelBet(Request $request)
         }
     }
     
-    /*
+    /**
      * 
      * @param Request $request
      * @return \Illuminate\Http\Response
@@ -1116,17 +837,17 @@ public function cancelBet(Request $request)
      * end_date
      * end_hour
      */
-    // public function endRaffle(Request $request){
-    //     $raffle = Raffle::find($request->raffle_id);
-    //     $raffle->end_date= $request->end_date;
-    //     $raffle->end_hour= $request->end_hour;
-    //     $res= $raffle->save();
-    //     if ($res){
-    //         return response()->json(['message'=>$raffle], 200);
-    //     }else{
-    //         return response()->json(['error' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
-    //     }
-    // }
+    public function endRaffle(Request $request){
+        $raffle = Raffle::find($request->raffle_id);
+        $raffle->end_date= $request->end_date;
+        $raffle->end_hour= $request->end_hour;
+        $res= $raffle->save();
+        if ($res){
+            return response()->json(['message'=>$raffle], 200);
+        }else{
+            return response()->json(['error' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
+        }
+    }
 
      /**
      * 

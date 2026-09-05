@@ -17,8 +17,8 @@ class CreateCardRaffleTable extends Migration
             $table->id();
             $table->unsignedBigInteger('card_id');
             $table->unsignedBigInteger('raffle_id');
-            $table->UnsignedBigInteger('user_id');
-            $table->integer('indice');
+            $table->UnsignedBigInteger('user_id')->nullable();
+            $table->integer('indice')->nullable();
             $table->string('active', 2 )->nullable();
             $table->timestamp('start_date')->nullable();
             $table->timestamp('end_date')->nullable();

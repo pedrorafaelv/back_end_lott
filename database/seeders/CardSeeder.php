@@ -16,21 +16,34 @@ class CardSeeder extends Seeder
      */
     public function run()
     {
-        // Deshabilitar verificaciones de clave foránea
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        Card::truncate(); 
-        $a=0;
-        $array_fichas=array();
-        $array_desc=array();
-        for ($i=0; $i < 25; $i++) { 
-            while ($a <= 24) {
-                $f = Ficha::inRandomOrder()->first();
-                if (!in_array($f->id, $array_fichas)){           
-                    $array_fichas[$a]=$f->id;
-                    $array_desc[$a]=$f->name;
-                    $a++;
-                }
-            }
+     
+
+// Deshabilitar verificaciones de clave foránea
+    DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+    Card::truncate(); 
+    
+    // Obtener solo las fichas con IDs entre 376 y 475
+    // $fichasDisponibles = Ficha::whereBetween('name', [376, 475])->get();
+    $fichasDisponibles = Ficha::where('active', 1)
+        ->get();
+    
+    // Verificar que hay suficientes fichas
+    if ($fichasDisponibles->count() < 25) {
+        $this->command->error('No hay suficientes fichas disponibles. Se necesitan al menos 25.');
+        return;
+    }
+    
+    for ($i = 0; $i < 25; $i++) {
+        $array_fichas = [];
+        $array_desc = [];
+        
+        // Obtener 25 fichas únicas aleatorias del conjunto disponible
+        $fichasSeleccionadas = $fichasDisponibles->random(25);
+        
+        foreach ($fichasSeleccionadas as $index => $ficha) {
+            $array_fichas[$index] = $ficha->id;
+            $array_desc[$index] = $ficha->name;
+        }
             Card::create([
                 'pos01'=> $array_fichas[0],
                 'pos02'=> $array_fichas[1],
