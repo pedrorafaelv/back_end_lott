@@ -101,7 +101,7 @@ Route::prefix('raffle')->group(function () {
     Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
     Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
     Route::get('getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
-    Route::get('getAvailableCardsByRaffle',[RaffleController::class, 'getAvailableCardsByRaffle']);
+    Route::get('getAvailableCardsByRaffle/{raffle_id}', [RaffleController::class, 'getAvailableCardsByRaffle']);
     // Route::post('checkFullWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullWinner']);
     Route::post('newRaffle', [RaffleController::class, 'store']); // Cambiado para usar un solo endpoint
     Route::post('setStart/{raffle_id}/{start_date}/{start_hour}', [RaffleController::class, 'setStart']);

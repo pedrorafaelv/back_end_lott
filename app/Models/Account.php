@@ -14,5 +14,19 @@ class Account extends Model
 
         return $this->belongsTo(User::class);    
    }
+   protected $fillable = [
+        'user_id',
+        'currency_code',
+        'amount',
+        'credit',
+        'credit_promotion',
+        'deposit',
+        'withdrawal',
+        'via',
+        'description',
+        'comments',
+        'created_at',
+        'updated_at'
+    ];
    
 }

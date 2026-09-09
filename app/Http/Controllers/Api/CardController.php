@@ -162,8 +162,9 @@ class CardController extends Controller
             return response()->json([
                 'message' => 'Available cards',
                 'success' => true,
-                'error' => 'cards',
+                'error' => false,
                 'code' => 'OK-000',
+                'date' => date("Y-m-d H:i:s"),
                 'Card' => $AvailableCards
             ], 200);
         }
@@ -172,6 +173,7 @@ class CardController extends Controller
             'message' => 'Not cards available',
             'success' => false,
             'error' => true,
+            'date'=> date("Y-m-d H:i:s"),
             'code' => 'ERR-021'
         ], 404);
 

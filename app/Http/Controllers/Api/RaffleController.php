@@ -17,6 +17,7 @@ use App\Models\Account;
 use App\Models\FichaGroupFicha;
 use App\Models\GroupFicha;
 use App\Models\FichaRaffle;
+use App\Models\CardRaffle; 
 use App\Http\Controllers\Api\FichaController;
 use Illuminate\Database\Query\JoinClause;
 
@@ -241,78 +242,206 @@ class RaffleController extends Controller
 
 
 /**
+ * Hacer una apuesta (agregar cartón a un sorteo)
+ * 
+ * @param Request $request
+ * @return \Illuminate\Http\JsonResponse
+ * 
  * $request->raffle_id
  * $request->card_id
  * $request->user_id
  */
-    public function putCard(Request $request){
-        // validar que el sorteo este activo
-        $raffle =  Raffle::find($request->raffle_id);
-        if($raffle->end_date){
-            return response()->json(
-                ['success' => false,
-                 'error'=>"009",
-                 'code' => 'ERR-009',
-                 'date'=> date("Y-m-d H:i:s"),
-                 'message'=> 'Bets cannot be placed because the draw has already ended or results are currently being processed.'], 409);
+public function putCard(Request $request)
+{
+    try {
+        // 1. Validar que el sorteo existe
+        $raffle = Raffle::find($request->raffle_id);
+        if (!$raffle) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-006',
+                'date' => now()->toDateTimeString(),
+                'message' => 'Raffle not found'
+            ], 404);
         }
-        // validar que no esten mas de 2 fichas en el sorteo
-        $fichas_raffle = FichaRaffle::where([['raffle_id','=',$request->raffle_id]]);
-        $count_fichas = count($fichas_raffle);
-        if ($count_fichas > 2){
-            // return response()->json(["message"=>"El raffle ya tiene asignadas las 2 primeras fichas"], 401);
-            return response()->json(['success' => false,
-                                      'error' =>"true",
-                                      'code'   => 'ERR-009',
-                                      'fichas' => $count_fichas,
-                                      'date'   => date("Y-m-d H:i:s"),
-                                      'message'=>'Bets cannot be placed because the draw has already ended or results are currently being processed.'], 409);
-        }
-        // validar la cuenta de dinero disponible del usuario
-        $account = Account::find($request->user_id);
-        if ($account->balance < $raffle->card_amount){    
-            return response()->json(['success'=> false,
-                                     'error'  =>'true',
-                                     'code'   =>'ERR-010', 
-                                     'dif'    => $account->balance - $raffle->card_amount,
-                                     'date'   => date("Y-m-d H:i:s"),
-                                     'message'=>"The user balance's its not enough"], 422);
-        }
-    // valida la disponibilidad del carton en el sorteo
-        $i = 0;
-        $cards = array();
-        $cards_raffle = $raffle->Cards;
-        if (count($cards_raffle)>0 ){
-            foreach( $cards_raffle as $card){
-                $cards[$i]= $card->id;  
-                $i++;
-            }
-        }
-        $i= count($cards) + 1;
-        // echo '<pre> $card = ';print_r($cards); echo '</pre>';
-        if (!in_array($request->card_id, $cards)){
-            $res = $raffle->Cards()->attach($request->card_id, ['raffle_id' =>$request->raffle_id, 
-                                                                'user_id'   =>$request->user_id, 
-                                                                'indice'    => $i, 
-                                                                'created_at'=>date("Y-m-d H:i:s"), 
-                                                                'updated_at'=> date("Y-m-d H:i:s")]);
-            return response()->json([ 'success'  =>true,
-                                      'error'    =>false,
-                                      'code'     =>'OK-000',
-                                      'date'     => date("Y-m-d H:i:s"),
-                                      'indice'   => $i, 
-                                      'message'  =>'Card added successfully ',
-                                      'card'     =>$request->card_id, 
-                                      'raffle_id'=>$request->raffle_id], 200);
-        }else {
-            return response()->json([ 'success' =>false,
-                                       'error'  =>true,
-                                       'code'   => 'ERR-008',
-                                       'message'=>'The user has already placed an identical bet for that number and draw. ',
-                                       'card'   =>$request->card_id],409 );
-        }
-    }
 
+        // 2. Validar que el sorteo esté activo (no cerrado)
+        if ($raffle->end_date && $raffle->end_date != '0000-00-00 00:00:00' && now()->gt($raffle->end_date)) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-009',
+                'date' => now()->toDateTimeString(),
+                'data' => ['raffle_id' => $raffle->id, 'end_date' => $raffle->end_date],
+                'message' => 'Bets cannot be placed because the draw has already ended'
+            ], 409);
+        }
+
+        // 3. Validar que el sorteo haya iniciado
+        if (!$raffle->start_date || now()->lt($raffle->start_date)) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-023',
+                'date' => now()->toDateTimeString(),
+                'data' => ['raffle_id' => $raffle->id, 'start_date' => $raffle->start_date],
+                'message' => 'Raffle has not started yet'
+            ], 409);
+        }
+
+        // 4. Validar límite de fichas (dinámico)
+        $fichasCount = FichaRaffle::where('raffle_id', $request->raffle_id)->count();
+        $maxFichas = $raffle->maximun_play ?? 2; // Usar valor de la tabla o default 2
+        
+        if ($fichasCount >= $maxFichas) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-00',
+                'date' => now()->toDateTimeString(),
+                'data' => [
+                    'fichas_actuales' => $fichasCount,
+                    'fichas_maximas' => $maxFichas
+                ],
+                'message' => "Cannot place bet. Maximum number of figures ({$maxFichas}) already assigned."
+            ], 409);
+        }
+
+        // 5. Validar cuenta del usuario
+        $account = Account::where('user_id', $request->user_id)->latest('created_at')->first();
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-029',
+                'date' => now()->toDateTimeString(),
+                'message' => "User doesn't have an account"
+            ], 404);
+        }
+
+        // 6. Validar saldo suficiente
+        $cardAmount = $raffle->card_amount ?? 0;
+        if ($account->amount < $cardAmount) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-010',
+                'date' => now()->toDateTimeString(),
+                'data' => [
+                    'account_balance' => $account->amount,
+                    'card_amount' => $cardAmount,
+                    'difference' => $cardAmount - $account->amount
+                ],
+                'message' => "Insufficient balance"
+            ], 422);
+        }
+
+        // 7. Verificar disponibilidad del cartón
+        $cardRaffle = CardRaffle::where('raffle_id', $request->raffle_id)
+            ->where('card_id', $request->card_id)
+            ->first();
+
+        // ✅ Si el cartón ya está asignado a otro usuario
+        if ($cardRaffle && $cardRaffle->user_id !== null) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-011',
+                'date' => now()->toDateTimeString(),
+                'message' => "Card is already assigned to another user",
+                'data' => [
+                    'card_id' => $request->card_id,
+                    'assigned_to' => $cardRaffle->user_id
+                ]
+            ], 409);
+        }
+
+        // ✅ Iniciar transacción para garantizar integridad
+        DB::beginTransaction();
+
+        try {
+            // 8. Asignar el cartón al usuario
+            if (!$cardRaffle) {
+                // Crear nuevo registro si no existe
+                $cardRaffle = CardRaffle::create([
+                    'raffle_id' => $request->raffle_id,
+                    'card_id' => $request->card_id,
+                    'user_id' => $request->user_id,
+                    'indice' => CardRaffle::where('raffle_id', $request->raffle_id)->count() + 1,
+                    'status' => 'active',
+                    'active' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            } else {
+                // Actualizar registro existente
+                $cardRaffle->user_id = $request->user_id;
+                $cardRaffle->status = 'active';
+                $cardRaffle->updated_at = now();
+                $cardRaffle->save();
+            }
+
+            // 9. Descontar el saldo y registrar transacción
+            $newBalance = $account->amount - $cardAmount;
+            
+            $transaction = Account::create([
+                'user_id' => $request->user_id,
+                'currency_code' => $account->currency_code ?? 'EUR',
+                'amount' => $newBalance,
+                'withdrawal' => $cardAmount,  // Si el campo existe
+                'via' => 3, // Bet
+                'description' => "Bet for card {$request->card_id} in raffle {$request->raffle_id}",
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            // 10. Actualizar el saldo de la cuenta
+            $account->amount = $newBalance;
+            $account->save();
+
+            // ✅ Confirmar transacción
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'error' => false,
+                'code' => 'OK-000',
+                'date' => now()->toDateTimeString(),
+                'data' => [
+                    'card_id' => $request->card_id,
+                    'raffle_id' => $request->raffle_id,
+                    'user_id' => $request->user_id,
+                    'indice' => $cardRaffle->indice,
+                    'account_balance' => $newBalance,
+                    'transaction_id' => $transaction->id
+                ],
+                'message' => 'Card added successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            // ❌ Si algo falla, revertir transacción
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-030',
+                'date' => now()->toDateTimeString(),
+                'message' => 'Transaction failed: ' . $e->getMessage()
+            ], 500);
+        }
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => true,
+            'code' => 'ERR-500',
+            'date' => now()->toDateTimeString(),
+            'message' => 'Unexpected error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
     /**
  * Cancelar una apuesta (eliminar cartón de un sorteo)
@@ -406,7 +535,7 @@ public function cancelBet(Request $request)
         if ($detached > 0) {
             // 9. Reembolsar el dinero (si aplica)
             $cardAmount = $raffle->card_amount ?? 0;
-            $account->balance += $cardAmount;
+            $account->amount += $cardAmount;
             $account->save();
 
             // 10. Registrar transacción (opcional)
@@ -422,7 +551,7 @@ public function cancelBet(Request $request)
                             'card_id' => $request->card_id,
                             'user_id' => $request->user_id,
                             'refunded_amount' => $cardAmount,
-                            'new_balance' => $account->balance,
+                            'new_amount' => $account->amount,
                             ],
                 'date'   => now()
             ], 200);
@@ -1198,48 +1327,56 @@ public function cancelBet(Request $request)
      /**
      * get the cards in a raffle.
      *
-      * @param  \App\Models\card  $card
+     * @param Request $request
      * @return \Illuminate\Http\Response
      */ 
-    public function getAvailableCardsByRaffle(Request $request)
+    public function getAvailableCardsByRaffle(Request $request, $raffle_id)
 {
     $request->validate([
-        'raffle_id' => 'required|exists:raffles,id',
-        'per_page' => 'nullable|integer|min:1|max:100'
+        'per_page' => 'nullable|integer|min:1|max:100',
     ]);
 
-    $perPage = $request->input('per_page', 15);
+    $perPage = $request->input('per_page', 50);
+    $userId = $request->input('user_id');   
 
-    $AvailableCards = DB::table('cards')
+    $query = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-        ->where('card_raffle.raffle_id', '=', $request->raffle_id)
+        ->where('card_raffle.raffle_id', '=', $raffle_id)
+        // ->where('card_raffle.user_id', '=', null)
         ->select(
             'cards.*',
             'card_raffle.id as card_raffle_id',
-            'card_raffle.user_id',
-            'card_raffle.indice',
-            'card_raffle.status',
         )
-        ->orderBy('card_raffle.indice', 'asc')
-        ->paginate($perPage);
+        ->orderBy('card_raffle.indice', 'asc');
+
+        // ✅ Si hay user_id, filtrar por él, si no, user_id = null
+        if ($userId) {
+            $query->where('card_raffle.user_id', '=', $userId);
+        } else {
+            $query->whereNull('card_raffle.user_id');
+        }
+
+        // ->distinct()
+        // ->paginate($perPage);
+
+        $AvailableCards = $query->paginate($perPage);
 
     if ($AvailableCards->isNotEmpty()) {
         return response()->json([
             'message' => 'Cards assigned to this raffle',
             'success' => true,
-            'error' => false,
-            'code' => 'OK-000',
-            'raffle_id' => $request->raffle_id,
-            'data' => $AvailableCards
-        ], 200);
+            'error'   => false,
+            'code'    => 'OK-000',
+            'date' => date("Y-m-d H:i:s"),
+            'data'    => ['Card'=>$AvailableCards]], 200);
     }
-
     return response()->json([
         'message' => 'No cards assigned to this raffle',
         'success' => false,
         'error' => true,
         'code' => 'ERR-021',
-        'raffle_id' => $request->raffle_id
+        'date' => date("Y-m-d H:i:s"),
+        'data' => ['Card'=>[]]
     ], 404);
 }
     
