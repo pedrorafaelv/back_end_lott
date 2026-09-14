@@ -20,8 +20,11 @@ use App\Models\FichaRaffle;
 use App\Models\CardRaffle; 
 use App\Http\Controllers\Api\FichaController;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Str; 
+use Illuminate\Support\Facades\Log; 
 
-class RaffleController extends Controller
+
+class RaffleController extends BaseApiController
 {
     /**
      * Display a listing of the resource.
@@ -455,126 +458,181 @@ public function putCard(Request $request)
  * - user_id: ID del usuario (o se obtiene del token)
  */
 public function cancelBet(Request $request)
-{
-    try {
-        // 1. Validar datos de entrada
-        $request->validate([
-            'raffle_id' => 'required|exists:raffles,id',
-            'card_id' => 'required|exists:cards,id',
-            'user_id' => 'required|exists:users,id',
-        ]);
+    {
+        // ✅ Generar request_id único para trazabilidad
+        $requestId = (string) Str::uuid();
+        $timestamp = now()->toDateTimeString();
 
-        // 2. Obtener el sorteo
-        $raffle = Raffle::find($request->raffle_id);
-        
-        // 3. Validar que el sorteo exista y esté activo
-        if (!$raffle) {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-006',
-                'message' => 'Raffle not found',
-                'date'    => now()
-            ], 404);
+        try {
+            // 1. Validar datos de entrada
+            $validator = validator([
+                'raffle_id' => $request->raffle_id,
+                'card_id'   => $request->card_id,
+                'user_id'   => $request->user_id,
+            ], [
+                'raffle_id' => 'required|exists:raffles,id',
+                'card_id'   => 'required|exists:cards,id',
+                'user_id'   => 'required|exists:users,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->errorResponse(
+                    'ERR-001',
+                    'Validation error',
+                    $validator->errors()->toArray(),
+                    422,
+                    $requestId
+                );
+            }
+
+            // 2. Obtener el sorteo
+            $raffle = Raffle::find($request->raffle_id);
+
+            if (!$raffle) {
+                return $this->errorResponse(
+                    'ERR-006',
+                    'Raffle not found',
+                    null,
+                    404,
+                    $requestId
+                );
+            }
+
+            // 3. Validar que el sorteo no haya terminado
+            if ($raffle->end_date 
+                && $raffle->end_date != '0000-00-00 00:00:00' 
+                && now()->gt($raffle->end_date)
+            ) {
+                return $this->errorResponse(
+                    'ERR-009',
+                    'Cannot cancel bet because the raffle has already ended',
+                    ['end_date' => $raffle->end_date],
+                    409,
+                    $requestId
+                );
+            }
+
+            // 4. Validar límite de fichas
+            $countFichas = DB::table('ficha_raffle')
+                ->where('raffle_id', $request->raffle_id)
+                ->count();
+
+            $maxFichas = $raffle->maximun_play ?? 2;
+
+            if ($raffle->start_date 
+                && now()->gt($raffle->start_date) 
+                && $countFichas > $maxFichas
+            ) {
+                return $this->errorResponse(
+                    'ERR-016',
+                    "Cannot cancel bet. The raffle has already started and the maximum number of figures ({$maxFichas}) has been reached.",
+                    [
+                        'raffle_id'        => $raffle->id,
+                        'start_date'       => $raffle->start_date,
+                        'fichas_asignadas' => $countFichas,
+                        'fichas_maximas'   => $maxFichas,
+                    ],
+                    409,
+                    $requestId
+                );
+            }
+
+            // 5. Verificar que la apuesta exista y pertenezca al usuario
+            $bet = DB::table('card_raffle')
+                ->where('raffle_id', $request->raffle_id)
+                ->where('card_id', $request->card_id)
+                ->where('user_id', $request->user_id)
+                ->first();
+
+            if (!$bet) {
+                return $this->errorResponse(
+                    'ERR-017',
+                    'Bet not found or does not belong to this user',
+                    null,
+                    404,
+                    $requestId
+                );
+            }
+
+            // 6. Obtener la cuenta del usuario
+            $account = Account::where('user_id', $request->user_id)
+                ->latest()
+                ->first();
+
+            if (!$account) {
+                return $this->errorResponse(
+                    'ERR-018',
+                    'User account not found',
+                    null,
+                    404,
+                    $requestId
+                );
+            }
+
+            // 7. Iniciar transacción
+            DB::beginTransaction();
+
+            try {
+                // 8. Eliminar la apuesta
+                $detached = $raffle->Cards()->detach($request->card_id);
+
+                if ($detached <= 0) {
+                    DB::rollBack();
+                    return $this->errorResponse(
+                        'ERR-019',
+                        'Failed to cancel the bet',
+                        null,
+                        500,
+                        $requestId
+                    );
+                }
+
+                // 9. Reembolsar el dinero
+                $cardAmount = $raffle->card_amount ?? 0;
+                $account->amount += $cardAmount;
+                $account->save();
+
+                // 10. Registrar transacción de reembolso (opcional)
+                // Transaction::create([...]);
+
+                DB::commit();
+
+                // ✅ RESPUESTA DE ÉXITO
+                return $this->successResponse(
+                    'OK-001',
+                    'Bet cancelled successfully',
+                    [
+                        'raffle_id'       => (int) $request->raffle_id,
+                        'card_id'         => (int) $request->card_id,
+                        'user_id'         => (int) $request->user_id,
+                        'refunded_amount' => (float) $cardAmount,
+                        'new_amount'      => (float) $account->amount,
+                    ],
+                    200,
+                    $requestId
+                );
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error in cancelBet: ' . $e->getMessage(), [
+                'request_id' => $requestId,
+                'trace'      => $e->getTraceAsString(),
+                'request'    => $request->all()
+            ]);
+
+            return $this->errorResponse(
+                'ERR-020',
+                'An error occurred while cancelling the bet',
+                config('app.debug') ? ['exception' => $e->getMessage()] : null,
+                500,
+                $requestId
+            );
         }
-
-        // 4. Validar que el sorteo NO haya terminado
-        if ($raffle->end_date && now()->gt($raffle->end_date)) {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-009',
-                'message' => 'Cannot cancel bet because the raffle has already ended',
-                'date'    => now()
-            ], 409);
-        }
-
-        // 5. Validar que el sorteo NO haya iniciado (si aplica)
-        if ($raffle->start_date && now()->gt($raffle->start_date)) {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-016',
-                'message' => 'Cannot cancel bet because the raffle has already started',
-                'date'    => now()
-            ], 409);
-        }
-
-        // 6. Verificar que la apuesta exista y pertenezca al usuario
-        $bet = DB::table('card_raffle')
-            ->where('raffle_id', $request->raffle_id)
-            ->where('card_id', $request->card_id)
-            ->where('user_id', $request->user_id)
-            ->first();
-
-        if (!$bet) {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-017',
-                'message' => 'Bet not found or does not belong to this user',
-                'date'    => now()
-            ], 404);
-        }
-
-        // 7. Obtener la cuenta del usuario
-        $account = Account::where('user_id', $request->user_id)->first();
-        if (!$account) {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-018',
-                'message' => 'User account not found',
-                'date'    => now()
-            ], 404);
-        }
-
-        // 8. Eliminar la apuesta (desvincular cartón del sorteo)
-        $detached = $raffle->Cards()->detach($request->card_id);
-
-        if ($detached > 0) {
-            // 9. Reembolsar el dinero (si aplica)
-            $cardAmount = $raffle->card_amount ?? 0;
-            $account->amount += $cardAmount;
-            $account->save();
-
-            // 10. Registrar transacción (opcional)
-            // Transaction::create([...]);
-
-            return response()->json([
-                'success' => true,
-                'error'   => false,
-                'code'    => 'OK-001',
-                'message' => 'Bet cancelled successfully',
-                'data'    => [
-                            'raffle_id' => $request->raffle_id,
-                            'card_id' => $request->card_id,
-                            'user_id' => $request->user_id,
-                            'refunded_amount' => $cardAmount,
-                            'new_amount' => $account->amount,
-                            ],
-                'date'   => now()
-            ], 200);
-        } else {
-            return response()->json([
-                'success' => false,
-                'error'   => true,
-                'code'    => 'ERR-019',
-                'message' => 'Failed to cancel the bet',
-                'date' => now()
-            ], 500);
-        }
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error'   => true,
-            'code'    => 'ERR-020',
-            'message' => 'An error occurred while cancelling the bet: ' . $e->getMessage(),
-            'date'    => now()
-        ], 500);
     }
-}
 
     /**
      * 
@@ -662,11 +720,10 @@ public function cancelBet(Request $request)
     //  }
       
     
-     /*
-     * 
-    //  * @param  Request $request
-    //  * @return \Illuminate\Http\Response
-     *
+     /**   
+       * @param  Request $request
+      * @return \Illuminate\Http\Response
+     
      */
     // function getNewRecord(Request $request){
     //     //Obtener el sorteo
@@ -688,7 +745,9 @@ public function cancelBet(Request $request)
     //                 $r->save();
     //                  if ($r->reward_full ==""|| $r->reward_full == null){
     //                     $this->endRaffle($request);
-    //                     return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=> $lineWinner, 'fullWinner' => ""], 200);
+    //                     return response()->json (['success'=>true,
+
+    //                     'data'=>['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=> $lineWinner, 'fullWinner' => ""]], 200);
     //                  }
     //             }
     //         }
