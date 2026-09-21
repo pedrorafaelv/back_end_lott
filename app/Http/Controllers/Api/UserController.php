@@ -354,5 +354,22 @@ class UserController extends Controller
         //  return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
     } 
 
+     /**
+ * 🔍 ENDPOINT: Verificar si un usuario es admin
+ * GET /api/user/checkAdmin?user_id=X
+ */
+public function checkAdmin(Request $request)
+{
+    $user = User::find($request->user_id);
+
+    if (!$user) {
+        return response()->json(['error' => 'User not found'], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'is_admin' => (bool) $user->is_admin,
+    ], 200);
+}
 }
 

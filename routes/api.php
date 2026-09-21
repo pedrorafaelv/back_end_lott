@@ -81,6 +81,8 @@ Route::prefix('user')->group(function () {
     Route::get('usersList/{user_id}', [UserController::class, 'index']);
     Route::post('newUser', [UserController::class, 'newUser']);
     Route::post('store', [UserController::class, 'store']);
+    Route::get('checkAdmin', [UserController::class, 'checkAdmin']);
+
 });
 
 // Rutas de Level
@@ -111,28 +113,25 @@ Route::prefix('raffle')->group(function () {
     Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
 });
 
-// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-//     return $request->user();
-// });
-// Route::resource('Account', AccountController::class)->except([ 'create','edit' ]);
 
-// /**********************************   CARD **************************************************/
-// Route::resource('Card', CardController::class)->except([ 'edit' ]);
 
-// Route::post('card/fillcard', [CardController::class, 'fillCard']);
-// //obtiene todos los cartones 
-// Route::get('card/getCards', [CardController::class, 'getCards']);
-// //Onbtirne los cartones dispoinibles a partir de el raffle_id
-// Route::get ('card/getAvailableCards/{raffle_id}', [CardController::class, 'getAvailableCards']);
-// //obtiene los cartones disponibles a partir de un grupo
-// Route::get ('card/getAvailableCardsByGroup/{group_id}', [CardController::class, 'getAvailableCardsByGroup']);
+/** ***********************************   Account ****************************************************/
+Route::prefix('account')->group(function () {
+    Route::get('/summary', [AccountController::class, 'getSummary']);
+    Route::get('/transactions', [AccountController::class, 'getTransactions']);
+    Route::post('/checkBet', [AccountController::class, 'checkBet']);
+    Route::post('/putBet', [AccountController::class, 'putBet']);
+    Route::post('/putAward', [AccountController::class, 'putAward']);
+    Route::post('/store', [AccountController::class, 'store']);
+    Route::post('/requestWithdrawal', [AccountController::class, 'requestWithdrawal']);
+    Route::post('/cancelWithdrawal', [AccountController::class, 'cancelWithdrawal']);
+});
 
-// /**********************************   FICHA  ***********************************************/
 
-// Route::resource('ficha', FichaController::class)->except([ 'create','edit' ]);
-
-// Route::post('ficha/{name}/{active}', [FichaController::class, 'store']);
-
+// Rutas del usuario para ver SUS retiros
+Route::prefix('account')->group(function () {
+    Route::get('/myWithdrawals', [WithdrawalController::class, 'myWithdrawals']);
+});
 
 // /**********************************   GROUP  ***********************************************/
 

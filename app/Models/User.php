@@ -26,7 +26,26 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'email_verified_at',
         'password',
+        'remember_token',
+        'last_name',
+        'birth_date',
+        'document',
+        'gender',
+        'phone',
+        'phone_verified_at',
+        'country',
+        'state',
+        'city',
+        'address',
+        'role',
+        'firebase_localId',
+        'firebase_token',
+        'firebase_last_conection',
+        'is_admin',
+        'created_at',
+        'updated_at'
     ];
 
     /**
@@ -46,6 +65,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'is_admin'=>'boolean',
     ];
     public function account(){
 
