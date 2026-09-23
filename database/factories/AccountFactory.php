@@ -20,7 +20,7 @@ class AccountFactory extends Factory
             'credit_promotion' => $this->faker->randomFloat(2, 0, 1000),
             'deposit' => $this->faker->numberBetween(0, 10000),
             'withdrawal' => $this->faker->numberBetween(0, 5000),
-            'via' => $this->faker->numberBetween(1, 5),
+            'via_id' => $this->faker->numberBetween(1, 8),
         ];
     }
 }

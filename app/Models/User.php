@@ -76,11 +76,6 @@ class User extends Authenticatable
          return $this->belongsToMany(Group::class);
     }     
     
-    public function levels()
-    {
-        return $this->belongsToMany(Level::class);
-    }
-    
     public function Raffles(){
         
         return $this->hasMany(Raffle::class);
@@ -95,4 +90,42 @@ class User extends Authenticatable
 
         return $this->belongsToMany(Role::class);
     }
+     
+
+    public function levels() {
+    return $this->belongsToMany(Level::class, 'level_user')
+                ->withPivot([
+                    'games_played',
+                    'wins',
+                    'active_raffles',
+                    'total_raffles',
+                    'total_prizes',
+                    'is_current',
+                    'assigned_at',
+                    'notes',
+                ])
+                ->withTimestamps();
+     }
+    /**
+ * Nivel actual del usuario
+ */
+    public function currentLevel()
+        {
+        return $this->hasOne(Level::class, 'id', 'level_id')
+            ->join('level_user', 'levels.id', '=', 'level_user.level_id')
+            ->where('level_user.user_id', $this->id)
+            ->where('level_user.is_current', true)
+            ->select('levels.*');
+}
+
+/**
+ * Acceso directo al nivel activo (con fallback a Novato si no tiene)
+ */
+public function getActiveLevelAttribute()
+{
+    return $this->levels()
+        ->wherePivot('is_current', true)
+        ->first()
+        ?? Level::where('slug', 'novato')->first();
+}
 }

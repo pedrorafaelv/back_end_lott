@@ -20,7 +20,11 @@ class UserController extends Controller
     {
         $users= User::all();
 
-        return response()->json(['message'=>'usarios encontrados', 'usuarios'=> $users ],200);
+        return response()->json(['success'=>true,
+                                 'error'=>false,
+                                 'code'=>'001-OK',
+                                 'message'=>'usuarios encontrados', 
+                                 'data'=>['usuarios'=> $users] ],200);
     }
 
     /**
@@ -61,14 +65,26 @@ class UserController extends Controller
             $user->address = $request->address;
             $user->firebase_localId = $request->firebase_localId;
             $user->firebase_token = $request->firebase_token;
+            $user->is_admin= $request->is_admin;
             $user->firebase_last_connection = $request->firebase_last_connection;
             $res = $user->save();
             if ($res){
-                return response()->json(['message'=>'User created','user'=>$user], 200);
+                return response()->json(['error'=> false,
+                                        'success'=>true,
+                                        'message'=>'User created',
+                                        'code'=>'0001-OK',
+                                        'data'=>['user'=>$user]], 200);
+                                            
             }else{
-                return response()->json(['error' => 'Error to create User'], 401);
+                return response()->json(['error'=>true,
+                                        'success'=> false,
+                                        'code'=> 'ERR-033',
+                                        'message' => 'Error to create User'], 401);
             }
-        } return response()->json(['error' => 'User duplicated'], 401);
+        } return response()->json(['error'=>true,
+                                    'sucess'=> false,
+                                    'code'=>'ERR-034',
+                                    'message' => 'User duplicated'], 401);
     }
 
     /**
@@ -91,11 +107,21 @@ class UserController extends Controller
             $user->firebase_last_connection = date("Y-m-d H:i:s");
             $res = $user->save();
             if ($res){
-                return response()->json(['message'=>'User created','user'=>$user], 200);
+                return response()->json(['error'=>false,
+                                        'success'=>true,
+                                        'code'=>'001-OK',
+                                        'message'=>'User created',
+                                        'user'=>$user], 200);
             }else{
-                return response()->json(['error' => 'Error to create User'], 401);
+                return response()->json(['error'=>true,
+                                        'success'=>false,
+                                        'code'=>'ERR-032',
+                                        'message' => 'Error to create User'], 401);
             }
-        } return response()->json(['error' => 'User duplicated'], 401);
+        } return response()->json(['code'=>'ERR-032',
+                                    'error'=>true,
+                                    'success'=> false,
+                                    'message' => 'User duplicated'], 401);
     }
 
 
@@ -139,7 +165,10 @@ class UserController extends Controller
         if ($us){
             $us->remember_token = $request->remember_token;
             $res= $us->save();
-            return response()->json(['message' => 'User Token updated'], 200);
+            return response()->json(['error'=>false,
+                                    'success'=> true,
+                                    'code'=>'001-OK',
+                                    'message' => 'User Token updated'], 200);
         } return response()->json(['error' => 'Error to udate User'], 401);
     }
 
@@ -173,8 +202,9 @@ class UserController extends Controller
             }   
         }
          return response()->json(['message'=> 'El usuario '.$request->id. ' No tiene Grupos asociados','success' => false,
-                                'error' => 'true',
-                                'code' => 'ERR-016',], 400);  
+                                  'error' => true,
+                                  'success'=>false,
+                                  'code' => 'ERR-016',], 400);  
     }
 
     public function putGroup(Request $request){
@@ -199,6 +229,7 @@ class UserController extends Controller
         } 
          return response()->json(['error'=> 'No se pudo asociar el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
     }
+
 
     public function putOffGroup(Request $request){
 
@@ -239,13 +270,13 @@ class UserController extends Controller
    public function updateDataFirebase(Request $request){
 
     $user = User::where('firebase_localId', $request->firebase_localId)->get();
-    
+     
     if ($user!= null){
         $user->firebase_token = $request->token;
         $user->firebase_last_connection = $request->last_connection;
         $res = $user->save();
         if ($res){
-            return response()->json(['message' => 'Updated user', 'user'->$user], 200);
+            return response()->json(['message' => 'Updated user', 'user' => $user], 200);
         }else{
             return response()->json(['error' => 'error updating user'], 401);
         }
@@ -371,5 +402,59 @@ public function checkAdmin(Request $request)
         'is_admin' => (bool) $user->is_admin,
     ], 200);
 }
+
+/**
+   * Lista de usuarios paginada
+   * @param user     localId del usuario autenticado
+   * @param page     número de página (1-based)
+   * @param perPage  registros por página
+   * @param search   filtro opcional por nombre/email
+   */
+public function usersList(Request $request, $localId)
+    {
+        // Validación de parámetros
+        $perPage = (int) $request->input('per_page', 10);
+        $perPage = max(1, min($perPage, 100)); // límite entre 1 y 100
+        $page    = (int) $request->input('page', 1);
+        $search  = $request->input('search');
+
+        // Query base
+        $query = User::query();
+
+        // Filtro por localId (ajusta a tu lógica real)
+        // if ($localId) {
+        //     $query->where('firebase_localId', $localId);
+        // }
+
+        // Búsqueda opcional
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Orden
+        $query->orderBy('id', 'asc');
+
+        // Paginación
+        $usuarios = $query->paginate($perPage, ['*'], 'page', $page);
+        // Respuesta estandarizada
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'code'    => '001-OK',
+            'message' => 'usuarios encontrados',
+            'data'    => [
+                'current_page' => $usuarios->currentPage(),
+                'last_page'    => $usuarios->lastPage(),
+                'per_page'     => $usuarios->perPage(),
+                'total'        => $usuarios->total(),
+                'from'         => $usuarios->firstItem(),
+                'to'           => $usuarios->lastItem(),
+                'usuarios'     => $usuarios->items(),
+            ],
+        ]);
+    }
 }
 

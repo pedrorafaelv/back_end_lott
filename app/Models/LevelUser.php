@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class LevelUser extends Model
+class LevelUser extends Pivot
 {
-    use HasFactory;
+    protected $table = 'level_user';
+
+    protected $casts = [
+        'is_current' => 'boolean',
+        'assigned_at' => 'datetime',
+        'total_prizes' => 'decimal:2',
+    ];
 }

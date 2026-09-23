@@ -5,11 +5,23 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Account;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 
 class AccountsSeeder extends Seeder
 {
     public function run()
     {
+         // Desactivamos las restricciones de clave foránea
+        Schema::disableForeignKeyConstraints();
+        
+        // Limpiamos la tabla antes de insertar (opcional)
+        DB::table('accounts')->truncate();
+        
+        // Habilitamos nuevamente las restricciones
+        Schema::enableForeignKeyConstraints();
+
         // Crear 10 cuentas aleatorias
         Account::factory()
             ->count(10)
