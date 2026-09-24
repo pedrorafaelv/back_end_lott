@@ -95,6 +95,11 @@ return [
         ],
     ],
 
+
+    'sanctum' => [
+        'driver' => 'sanctum',
+        'provider' => null,
+    ],
     /*
     |--------------------------------------------------------------------------
     | Password Confirmation Timeout

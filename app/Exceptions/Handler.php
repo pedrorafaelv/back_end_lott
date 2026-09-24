@@ -32,10 +32,21 @@ class Handler extends ExceptionHandler
      *
      * @return void
      */
-    public function register()
+     public function register()
     {
-        $this->reportable(function (Throwable $e) {
-            //
+        $this->renderable(function (AuthenticationException $e, $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'No autenticado. Token ausente o inválido.',
+                ], 401);
+            }
         });
-    }
+    }   
+    // public function register()
+    // {
+    //     $this->reportable(function (Throwable $e) {
+    //         //
+    //     });
+    // }
 }

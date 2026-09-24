@@ -1,5 +1,5 @@
  <?php
-
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AccountController;
@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\GroupFichaController;
 use App\Http\Controllers\Api\LevelController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Admin\WithdrawalController;
+use App\Http\Controllers\Admin\UserLevelController;
 
 /*
 |--------------------------------------------------------------------------
@@ -125,11 +127,22 @@ Route::prefix('account')->group(function () {
     Route::post('/store', [AccountController::class, 'store']);
     Route::post('/requestWithdrawal', [AccountController::class, 'requestWithdrawal']);
     Route::post('/cancelWithdrawal', [AccountController::class, 'cancelWithdrawal']);
-});
-
-
-// Rutas del usuario para ver SUS retiros
-Route::prefix('account')->group(function () {
-    Route::get('/myWithdrawals', [WithdrawalController::class, 'myWithdrawals']);
+    });
+    
+    
+    Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+        
+        Route::prefix('withdrawals')->middleware('admin')->group(function () {
+            Route::get('/',                [WithdrawalController::class, 'index']);
+            Route::get('/export',          [WithdrawalController::class, 'export']);
+            Route::get('/stats',           [WithdrawalController::class, 'stats']);
+            Route::get('/stats/detailed',  [WithdrawalController::class, 'detailedStats']);
+            Route::get('/myWithdrawals', [WithdrawalController::class, 'myWithdrawals']);
+            Route::get('/{withdrawal}',    [WithdrawalController::class, 'show']);
+            Route::get('/{withdrawal}/logs', [WithdrawalController::class, 'logs']);
+            Route::post('/{withdrawal}/approve',  [WithdrawalController::class, 'approve']);
+            Route::post('/{withdrawal}/reject',   [WithdrawalController::class, 'reject']);
+            Route::post('/{withdrawal}/complete', [WithdrawalController::class, 'complete']);
+    });
 });
 

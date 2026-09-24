@@ -13,6 +13,8 @@ use App\Models\Group;
 use App\Models\Level;
 use App\Models\Raffle;
 use App\Models\Role;
+use App\Models\WithdrawalRequest;
+
 
 class User extends Authenticatable
 {
@@ -127,5 +129,25 @@ public function getActiveLevelAttribute()
         ->wherePivot('is_current', true)
         ->first()
         ?? Level::where('slug', 'novato')->first();
+}
+
+public function withdrawals()
+{
+    return $this->hasMany(Withdrawal::class, 'user_id');
+}
+
+public function approvedWithdrawals()
+{
+    return $this->hasMany(Withdrawal::class, 'approved_by');
+}
+
+public function rejectedWithdrawals()
+{
+    return $this->hasMany(Withdrawal::class, 'rejected_by');
+}
+
+public function completedWithdrawals()
+{
+    return $this->hasMany(Withdrawal::class, 'completed_by');
 }
 }

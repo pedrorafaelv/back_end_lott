@@ -24,7 +24,8 @@ class AccountController extends Controller
             $userId = $request->user_id;
 
             if (!$userId) {
-                return response()->json(['error' => 'user_id is required'], 400);
+                return response()->json(['error' =>true, 
+                                        'message'=> 'user_id is required'], 400);
             }
 
             // 1. Obtener todas las monedas en las que el usuario tiene movimientos
@@ -79,6 +80,8 @@ class AccountController extends Controller
                 ->get();
 
             return response()->json([
+                'error'=>false, 
+                'code'=>'001=>OK',
                 'success' => true,
                 'data' => [
                     'balances' => $balances,
@@ -527,7 +530,7 @@ class AccountController extends Controller
             $withdrawal->currency_code = $request->currency_code;
             $withdrawal->amount = $request->amount;
             $withdrawal->commission = $commission;
-            $withdrawal->net_amount = $netAmount;
+            $withdrawal->net_amount = $netAmount;   
             $withdrawal->via_id = $request->via_id;
             $withdrawal->payment_data = json_encode($request->payment_data);
             $withdrawal->status = 'pending';
