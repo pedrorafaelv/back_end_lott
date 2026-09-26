@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Admin\WithdrawalController;
 use App\Http\Controllers\Admin\UserLevelController;
+use App\Http\Controllers\Auth\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,6 +29,12 @@ use App\Http\Controllers\Admin\UserLevelController;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// Rutas públicas de auth
+Route::prefix('auth')->group(function () {
+    Route::post('/exchange', [AuthController::class, 'exchange']);
+});
+
 
 // Rutas de Account
 Route::prefix('account')->group(function () {
@@ -146,3 +153,10 @@ Route::prefix('account')->group(function () {
     });
 });
 
+// Rutas protegidas de auth
+Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me',      [AuthController::class, 'me']);
+    Route::post('/exchange',[AuthController::class, 'exchange']);
+
+});

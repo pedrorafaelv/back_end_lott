@@ -330,31 +330,40 @@ class UserController extends Controller
          return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
     }
 
-    /**
-    * $request->user_id
-    */
-    public function getUserEmailConfirm(Request $request){
-
-      $user = User::where('email',$request->email)->get();
-      if( isset($user) ){
-        //   echo '<pre>';print_r($user[0].'###### '.property_exists( $user[0], 'email_verified_at'). ' #####'); echo '<pre>';
-        if ($user[0]->id != "" ){
-            if( $user[0]->email_verified_at != ""){
-                $resp = array(
-                'date'=> date("Y-m-d H:i:s"),
-                'User'=> $user[0]->name,
-                'EmailConfirm'=>$user[0]->email_verified_at,
-                );
-                return  response()-> json(['message'=>'email Confirmed','emailConfirm'=>$resp], 200);
-            }
-            return response()->json(['error'=> 'the user '.$request->email.' does not have the confirmed email'], 401);
-         }
-       }
-      return response()->json(['error'=> 'The User '.$request->email. ' does not exist'], 401);
-        // $i = 0;
-        
+   public function getUserEmailConfirm(Request $request, $email){
+    
+    // Validar que viene el email
+    if (empty($email) || $email === 'null') {
+        return response()->json([
+            'error' => 'Email inválido o vacío'
+        ], 400);
     }
 
+    $user = User::where('email', $email)->first();
+
+    if (!$user) {
+        return response()->json([
+            'error' => "El usuario {$email} no existe"
+        ], 401);
+    }
+
+    if (empty($user->email_verified_at)) {
+        return response()->json([
+            'error' => "El usuario {$email} no tiene el email confirmado"
+        ], 401);
+    }
+
+    $resp = [
+        'date'         => date("Y-m-d H:i:s"),
+        'User'         => $user->name,
+        'EmailConfirm' => $user->email_verified_at,
+    ];
+
+    return response()->json([
+        'message'     => 'Email confirmado',
+        'emailConfirm' => $resp
+    ], 200);
+}
 
     /**
     * $request->user_id
