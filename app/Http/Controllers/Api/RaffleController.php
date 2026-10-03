@@ -84,12 +84,23 @@ class RaffleController extends BaseApiController
             $res = $raffle->save();
            // $res = "";
             if ($res){
-                return response()->json($raffle, 200);
+                return response()->json(['succes'=> true,
+                                        'error'=> false,
+                                        'code'=>'001-OK',
+                                        'message'=> 'raffle created', 
+                                        'data'=>['raffle'=>$raffle]], 200);
             }else{
-                return response()->json(['message' => 'Error to create Raffle', 'group_id'=>$request->group_id], 401);
+                return response()->json(['success'=>false,
+                                            'error'=>true,
+                                            'code'=>'ERR-039',
+                                            'message'=>'raffle was not created',
+                                            'data'=> ['group_id'=>$request->group_id]], 401);
             }
         }
-        return response()->json(['message' => 'Error to create Raffle, Raffle(s) in progress', 'open_raffle'=>$open_raffle,'group_id'=>$request->group_id], 401);
+        return response()->json(['success'=>false,
+                                 'error'=> true,
+                                 'code'=>'ERR-040',       
+                                 'message' => 'Error to create Raffle, Raffle(s) in progress', 'open_raffle'=>$open_raffle,'group_id'=>$request->group_id], 401);
     }
     
     /**

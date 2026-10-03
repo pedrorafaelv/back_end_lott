@@ -92,7 +92,18 @@ class GroupFichaController extends Controller
      */
     public function show(GroupFicha $groupFicha)
     {
-        //
+        $Grupoficha= GroupFicha::find($request->groupficha_id);
+       
+       if ($Grupoficha){
+        return response()->json(['success'=>true,
+                                'error'=>false,
+                                'code'=>'001-OK',
+                                'data'=>['groupficha'=>$Grupoficha]], 200);
+        }
+        return response()->json(['success'=>false,
+                                 'error'=>true,
+                                 'code'=>'ERR-037',
+                                 'message'=>'groupficha not found'],404);
     }
 
     /**
@@ -129,25 +140,41 @@ class GroupFichaController extends Controller
         //
     }
 
+    /**
+     *  get the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\GroupFicha  $groupFicha
+     * @return \Illuminate\Http\Response
+     */
     public function getGroupFicha(Request $request){
 
         $Grupoficha= GroupFicha::find($request->groupficha_id);
-        // $resp = array(
-        //              'groupficha'=> $Grupoficha,
-        // );
-
-        return response()->json(['groupficha'=>$Grupoficha], 200);
-        // return response()->json($group);
+       
+       if ($Grupoficha){
+        return response()->json(['success'=>true,
+                                'error'=>false,
+                                'code'=>'001-OK',
+                                'data'=>['groupficha'=>$Grupoficha]], 200);
+        }
+        return response()->json(['success'=>false,
+                                 'error'=>true,
+                                 'code'=>'ERR-037',
+                                 'message'=>'groupficha not found'],404);
      }
-     public function getGroups(){
-        dd('groupfichas = ');
+
+    public function getGroups(request $request){
 
         $Grupofichas= GroupFicha::all();
-        // $resp = array(
-        //              'groupfichas'=> $Grupofichas,
-        // );
-
-        return response()->json(['groupfichas'=>$Grupofichas], 200);
-        // return response()->json($group);
-     }
+        if($Grupofichas){   
+            return response()->json(['success'=>true,
+                                     'error'=>false,
+                                     'code'=>'001-OK',
+                                     'data'=>['groupfichas'=>$Grupofichas]], 200);
+        }
+        return response()-json([['success'=>false,
+                                 'error'=>true,
+                                 'code'=>'ERR-038',
+                                 'message'=>'not groupFichas register']],404);
+    }
 }

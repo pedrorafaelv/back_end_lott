@@ -287,27 +287,106 @@ class UserController extends Controller
 
 
    /**
-    * $request->user_id
-    */
-   public function getUserLevel(Request $request){
+ * Obtiene el nivel actual del usuario con toda su información relevante.
+ *
+ * @param  \Illuminate\Http\Request  $request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function getUserLevel(Request $request)
+{
+    // 1. Validar entrada
+    // $request->validate([
+    //     'id' => 'required|integer|exists:users,id',
+    // ]);
 
+    // 2. Buscar usuario
     $user = User::find($request->id);
-    $i = 0;
-    
-    if (count($user->Levels)>0){
-        foreach ($user->Levels as $level ) {
-            $levels[$i] = $level->name;
-        }
-        $resp = array(
-            'date'=> date("Y-m-d H:i:s"),
-            'User'=> $request->id,
-            'Level'=>$levels
-        );
-        return  response()-> json(['message'=>'level found','level'=>$resp], 200);
-    }
-     return response()->json(['error'=> 'The User '.$request->id. ' has no associated levels'], 401);
+
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'error'   => true,
+            'code'    => 'ERR-038',
+            'message' => "The User {$request->id} was not found",
+        ], 404);
     }
 
+    // 3. Obtener el nivel activo (con los datos del pivote)
+    $level = $user->levels()
+        ->wherePivot('is_current', true)
+        ->first();
+
+    if (!$level) {
+        // Fallback al nivel Novato
+        $level = Level::where('slug', 'novato')->first();
+
+        if (!$level) {
+            return response()->json([
+                'success' => false,
+                'error'   => true,
+                'code'    => 'ERR-039',
+                'message' => "The User {$request->id} has no associated levels",
+            ], 404);
+        }
+    }
+
+    // 4. Extraer datos del pivote (si existen)
+    $pivot = $level->pivot;
+
+    // 5. Armar respuesta
+    $levelData = [
+        'id'                     => $level->id,
+        'slug'                   => $level->slug,
+        'name'                   => $level->name,
+        'description'            => $level->description,
+        'icon'                   => $level->icon,
+        'color'                  => $level->color,
+        'order'                  => $level->order,
+
+        // Beneficios / límites del nivel
+        'max_raffles_active'     => $level->max_raffles_active,
+        'max_amount'             => (float) $level->max_amount,
+        'max_retention_percent'  => $level->max_retention_percent,
+        'can_create_private'     => (bool) $level->can_create_private,
+        'can_use_auto_type'      => (bool) $level->can_use_auto_type,
+        'can_use_custom_fichas'  => (bool) $level->can_use_custom_fichas,
+
+        // Requisitos para alcanzarlo
+        'requirements' => [
+            'min_games_played'   => $level->min_games_played,
+            'min_days_registered'=> $level->min_days_registered,
+            'min_wins'           => $level->min_wins,
+        ],
+
+        // Estadísticas del usuario en este nivel (pivote)
+        'user_stats' => [
+            'games_played'   => $pivot?->games_played ?? 0,
+            'wins'           => $pivot?->wins ?? 0,
+            'active_raffles' => $pivot?->active_raffles ?? 0,
+            'total_raffles'  => $pivot?->total_raffles ?? 0,
+            'total_prizes'   => (float) ($pivot?->total_prizes ?? 0),
+            'is_current'     => (bool) ($pivot?->is_current ?? true),
+            'assigned_at'    => optional($pivot?->assigned_at)->toIso8601String(),
+            'notes'          => $pivot?->notes,
+        ],
+    ];
+
+    // 6. Respuesta final
+    return response()->json([
+        'success' => true,
+        'error'   => false,
+        'code'    => '001-OK',
+        'message' => 'Level found',
+        'data'    => [
+            'date'  => now()->toIso8601String(),
+            'user'  => [
+                'id'   => $user->id,
+                'name' => $user->name,
+            ],
+            'level' => $levelData,
+        ],
+    ], 200);
+}
     /**
     * $request->user_id
     */

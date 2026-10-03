@@ -70,8 +70,8 @@ Route::prefix('group')->group(function () {
 // Rutas de GroupFicha
 Route::prefix('groupFicha')->group(function () {
     Route::resource('/', GroupFichaController::class)->except(['create', 'edit']);
-    Route::get('getGroupFichas', [GroupFichaController::class, 'getGroupFichas']);
-    Route::get('getGroups/{groupficha_id}', [GroupFichaController::class, 'getGroups']);
+    Route::get('getGroupFicha/{id}', [GroupFichaController::class, 'show']);
+    Route::get('getGroups/', [GroupFichaController::class, 'getGroups']);
     Route::get('getGroupFicha/{groupficha_id}', [GroupFichaController::class, 'getGroupFicha']);
 });
 
@@ -111,6 +111,7 @@ Route::prefix('raffle')->group(function () {
     Route::get('getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']);
     Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
     Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
+    Route::post('/raffle', [RaffleController::class, 'store']);
     Route::get('getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
     Route::get('getAvailableCardsByRaffle/{raffle_id}', [RaffleController::class, 'getAvailableCardsByRaffle']);
     // Route::post('checkFullWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullWinner']);
@@ -120,6 +121,7 @@ Route::prefix('raffle')->group(function () {
     Route::get('autoRaffle/{raffle_id}', [RaffleController::class, 'autoRaffle']);
     Route::get('checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
     Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
+
 });
 
 

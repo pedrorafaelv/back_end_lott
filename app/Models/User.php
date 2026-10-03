@@ -69,26 +69,26 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'is_admin'=>'boolean',
     ];
-    public function account(){
+    public function accounts(){
 
-        return $this->hasOne(account::class);
+        return $this->hasMany(account::class);
     }
-     public function Groups(){
+     public function groups(){
           
          return $this->belongsToMany(Group::class);
     }     
     
-    public function Raffles(){
+    public function raffles(){
         
         return $this->hasMany(Raffle::class);
     }
     
-    public function Cards(){
+    public function cards(){
 
         return $this->belongsToMany(Card::class);
     }
 
-    public function Roles(){
+    public function roles(){
 
         return $this->belongsToMany(Role::class);
     }
@@ -113,11 +113,14 @@ class User extends Authenticatable
  */
     public function currentLevel()
         {
-        return $this->hasOne(Level::class, 'id', 'level_id')
-            ->join('level_user', 'levels.id', '=', 'level_user.level_id')
-            ->where('level_user.user_id', $this->id)
-            ->where('level_user.is_current', true)
-            ->select('levels.*');
+          return $this->belongsToMany(Level::class, 'level_user')
+                ->wherePivot('is_current', true)
+                ->withPivot([
+                    'games_played', 'wins', 'active_raffles',
+                    'total_raffles', 'total_prizes',
+                    'is_current', 'assigned_at', 'notes',
+                ])
+                ->withTimestamps();
 }
 
 /**
@@ -125,10 +128,15 @@ class User extends Authenticatable
  */
 public function getActiveLevelAttribute()
 {
-    return $this->levels()
+     $level = $this->levels()
         ->wherePivot('is_current', true)
-        ->first()
-        ?? Level::where('slug', 'novato')->first();
+        ->first();
+
+    // Fallback: si no tiene nivel activo, devuelve Novato
+    if (!$level) {
+        $level = Level::where('slug', 'novato')->first();
+    }
+    return $level;
 }
 
 public function withdrawals()
