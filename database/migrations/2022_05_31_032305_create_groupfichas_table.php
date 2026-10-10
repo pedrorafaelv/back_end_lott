@@ -16,6 +16,7 @@ class CreateGroupfichasTable extends Migration
         Schema::create('groupfichas', function (Blueprint $table) {
             $table->id();
             $table->text('name', 100)->unique();
+            $table->boolean('status')->default(1);
             $table->text('description', 255);
             $table->timestamps();
         });

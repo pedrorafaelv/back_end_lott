@@ -5,6 +5,10 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Database\Seeders\Fichaseeder;
 use Database\Seeders\Cardseeder;
+use Database\Seeders\ViaSeeder;
+use Database\Seeders\LevelSeeder;
+use Database\Seeders\LevelUserSeeder;
+
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,7 +19,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run()
     {
-        $this->call([UserSeeder::class,
+        $this->call([
+            // UserSeeder::class,
                     AccountsSeeder::class,
                     GroupSeeder::class,
                     GroupUserSeeder::class,
@@ -24,8 +29,9 @@ class DatabaseSeeder extends Seeder
                     FichaGroupFichaSeeder::class,
                     CardSeeder::class,
                     ViasSeeder::class,
-                    AccountsSeeder::class,
                     WithdrawalRequestSeeder::class,
-                    WithdrawalLogSeeder::class]);
+                    WithdrawalLogSeeder::class,
+                    levelSeeder::class,
+                    levelUserSeeder::class,]);
     }
 }

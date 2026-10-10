@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Enums\WithdrawalAction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory; 
 
 class WithdrawalLog extends Model
 {
+    use HasFactory;
     /**
      * ⚠️ Ajusta si tu tabla tiene otro nombre.
      * Por defecto Laravel usaría 'withdrawal_logs'.

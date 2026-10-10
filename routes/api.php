@@ -121,6 +121,8 @@ Route::prefix('raffle')->group(function () {
     Route::get('autoRaffle/{raffle_id}', [RaffleController::class, 'autoRaffle']);
     Route::get('checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
     Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
+    Route::get('getLastUserRaffle', [RaffleController::class, 'getLastUserRaffle']);
+    Route::get('searchRaffle', [RaffleController::class, 'searchRaffle']);
 
 });
 
@@ -159,6 +161,6 @@ Route::prefix('account')->group(function () {
 Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
-    Route::post('/exchange',[AuthController::class, 'exchange']);
+    // Route::post('/exchange',[AuthController::class, 'exchange']);
 
 });

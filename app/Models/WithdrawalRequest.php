@@ -9,14 +9,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Withdrawal extends Model
+class WithdrawalRequest extends Model
 {
     use HasFactory;
 
     /**
      * ⚠️ La tabla real se llama 'withdrawal_request', no 'withdrawals'
      */
-    protected $table = 'withdrawal_request';
+    protected $table = 'withdrawal_requests';
 
     protected $fillable = [
         'user_id',

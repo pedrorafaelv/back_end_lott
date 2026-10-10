@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\WithdrawalLog;
 use App\Models\WithdrawalRequest;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use App\Enums\WithdrawalAction;
 
 class WithdrawalLogFactory extends Factory
 {
@@ -30,8 +31,7 @@ class WithdrawalLogFactory extends Factory
             'admin_id'  => $this->faker->optional(0.7)->randomElement(
                                 User::inRandomOrder()->pluck('id')->toArray()
                             ),
-
-            'action'    => $action,
+            'action'     => $this->faker->randomElement(WithdrawalAction::cases()), 
 
             'notes'     => $this->faker->optional(0.8)->sentence(),
 

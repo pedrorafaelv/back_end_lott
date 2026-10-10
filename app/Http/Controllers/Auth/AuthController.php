@@ -82,17 +82,26 @@ class AuthController extends Controller
                 ],
             ]);
 
-        } catch (FailedToVerifyToken $e) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Token de Firebase inválido o expirado.',
-            ], 401);
+       } catch (FailedToVerifyToken $e) {
+             Log::error('❌ FailedToVerifyToken', [
+                'message' => $e->getMessage(),
+                 'token_preview' => substr($request->input('id_token'), 0, 50) . '...',
+                 ]);
+
+                 return response()->json([
+                        'success' => false,
+                     'error'   => 'Token de Firebase inválido o expirado.',
+                 ], 401);
         } catch (\Throwable $e) {
             Log::error('Firebase exchange error', ['error' => $e->getMessage()]);
 
             return response()->json([
                 'success' => false,
-                'error'   => 'Error procesando el token.',
+                'debug'   => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file'    => $e->getFile().':'.$e->getLine(),
+        ]           : null,
+                'error'   => 'Error procesando el tokenn',
             ], 500);
         }
     }

@@ -111,7 +111,18 @@ class RaffleController extends BaseApiController
      */
     public function show(Raffle $raffle)
     {
-        return response()->json($raffle);
+        $raffle = Raffle::find($raffle->id);
+        if (!$raffle) {
+            return response()->json(['error' => true,
+                                     'code' => 'ERR-006',
+                                     'success' => false,
+                                     'message' => 'Raffle not found'], 404);
+        }
+        return response()->json(['error'=>false,
+                                 'code'=>'OK-000',
+                                 'success'=>true,
+                                 'message'=>'Raffle found',
+                                 'data'=>['raffle'=>$raffle]]);
     }
 
     /**
@@ -490,7 +501,10 @@ public function cancelBet(Request $request)
                 return $this->errorResponse(
                     'ERR-001',
                     'Validation error',
-                    $validator->errors()->toArray(),
+                    [
+                        'errors'     => $validator->errors()->toArray(),
+                        'request_id' => $requestId,
+                    ],
                     422,
                     $requestId
                 );
@@ -503,7 +517,10 @@ public function cancelBet(Request $request)
                 return $this->errorResponse(
                     'ERR-006',
                     'Raffle not found',
-                    null,
+                    [
+                        'request_id' => $requestId,
+                        'success'    => null,
+                    ],
                     404,
                     $requestId
                 );
@@ -687,99 +704,6 @@ public function cancelBet(Request $request)
         }
     }
 
-
-    // private function newFicha(Request $request){ 
-        
-    //     //obtener las fichas de la tabla fichas_raffles
-    //     $fichas_raffle = Raffle::find($request->raffle_id)->Fichas;
-    //     $raffle= Raffle::find($request->raffle_id);
-    //     $nroFicha = count($fichas_raffle);
-    //     $i = 0;
-    //      //se debe obtener dinamicamente el numero mayor de fichas 
-    //     $groupfichas= DB::table('ficha_groupfichas')
-    //     ->join('fichas', 'ficha_groupfichas.ficha_id', '=', 'fichas.id')
-    //     ->where('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
-    //     ->where('fichas.active', 1)
-    //     ->get();
-    //     $maxFicha = $groupfichas->count();
-    //     // $maxFicha = 375;
-
-    //     if($nroFicha >0){
-    //         foreach ($fichas_raffle as $ficha){
-    //             $fichas[$i]= $ficha->id;
-    //             $i++;
-    //         }
-    //     }else{
-    //         $fichas = array();
-    //     } 
-    //     $indice= count($fichas) + 1;
-    //     for( $j = 0; $j<=$maxFicha ; $j++){
-    //         $f = Ficha::inRandomOrder()
-    //         ->join('ficha_groupfichas', 'fichas.id', '=', 'ficha_groupfichas.ficha_id')
-    //         ->where('active', 1)
-    //         ->where ('ficha_groupfichas.groupficha_id', '=', $raffle->groupficha_id )
-    //         ->first();
-    //         //   dd($f);
-    //         if (!in_array($f->id, $fichas)){           
-    //             $res =  $raffle->Fichas()->attach($f, ['raffle_id'=>$request->raffle_id,
-    //                                                     'indice'=> $indice, 
-    //                                                     'created_at'=>date("Y-m-d H:i:s"), 
-    //                                                     'updated_at'=> date("Y-m-d H:i:s")]);
-    //             return $f; 
-    //         }
-    //     }
-    //  }
-      
-    
-     /**   
-       * @param  Request $request
-      * @return \Illuminate\Http\Response
-     
-     */
-    // function getNewRecord(Request $request){
-    //     //Obtener el sorteo
-    //      $lineWinner = "0";
-    //      $fullWinner = "0";
-    //     $r = Raffle::find($request->raffle_id); 
-    //     //verificar que el sorteo no esté cerrado
-    //     if ( $r->end_date !== ""){    
-    //         //obtener nueva ficha
-    //         $ficha = $this->newFicha($request);
-    //         //verificar que el sorteo tenga ganador de linea o lleno
-    //         if ($r->reward_line === 1 && ($r->winner == ""|| $r->winner == null) ){
-    //             // dd('$r', $r);
-    //             //verificar ganador de línea
-    //             $lineWinner = $this->checkLineWinner($request->raffle_id, $ficha->id );
-    //             // guardar el line winner en el registro del raffle
-    //             if($lineWinner != "" && ($r->winner =="" || $r->winner==null)){
-    //                 $r->winner = $lineWinner;
-    //                 $r->save();
-    //                  if ($r->reward_full ==""|| $r->reward_full == null){
-    //                     $this->endRaffle($request);
-    //                     return response()->json (['success'=>true,
-
-    //                     'data'=>['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=> $lineWinner, 'fullWinner' => ""]], 200);
-    //                  }
-    //             }
-    //         }
-    //         if ($r->reward_full == 1){
-    //             //verificar si tiene ganador lleno
-    //             $fullWinner = $this->checkFullW($r->id, $ficha->id);
-    //             if($fullWinner != ""){
-    //                 $r->full_winner =  $fullWinner;
-    //                 $this->endRaffle($request); 
-    //                 return response()->json (['raffle' =>$r, 'ficha'=> $ficha, 'lineWinner'=>$lineWinner ,'fullWinner'=>$fullWinner], 200);
-    //             }
-    //            // guardar el line winner en el registro del raffle
-    //         }
-    //         return response()->json(['raffle'=>$r, 'ficha'=> $ficha], 200);  
-    //     }else{
-    //         return response()->json(['message' => 'End Raffle'], 401);
-    //     }
-    // }
-
-
-   /** codigo optimizado por deepseek  */
 
        /**
      * ✅ ENDPOINT PÚBLICO - Obtener nueva ficha para el sorteo
@@ -1307,26 +1231,7 @@ public function cancelBet(Request $request)
         }
     }
     
-    /*
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\Response
-     * raffle_id
-     * end_date
-     * end_hour
-     */
-    // public function endRaffle(Request $request){
-    //     $raffle = Raffle::find($request->raffle_id);
-    //     $raffle->end_date= $request->end_date;
-    //     $raffle->end_hour= $request->end_hour;
-    //     $res= $raffle->save();
-    //     if ($res){
-    //         return response()->json(['message'=>$raffle], 200);
-    //     }else{
-    //         return response()->json(['error' => 'Error to save Raffle', 'group_id'=> $request->raffle_id], 500);
-    //     }
-    // }
-
+  
      /**
      * 
      * @param Request $request
@@ -1450,5 +1355,136 @@ public function cancelBet(Request $request)
     ], 404);
 }
     
+ /**
+ * 
+ * @param  Request $request
+ * @return \Illuminate\Http\Response
+ *
+ */
    
+public function getLastUserRaffle(request $request){
+
+ $lastRaffle = Raffle::where('user_id', $request->user_id)
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+        if ($lastRaffle) {
+            return response()->json([
+                'message' => 'Last raffle for this user',
+                'success' => true,
+                'error'   => false,
+                'code'    => 'OK-001',
+                'date' => date("Y-m-d H:i:s"),
+                'data'    => ['raffle'=>$lastRaffle]], 200);
+        }
+        else{
+            
+            return response()->json([
+                'message' => 'No raffles found for this user',
+                'success' => false,
+                'error'   => false,
+                'code'    => 'ERR-022',
+                'date' => date("Y-m-d H:i:s"),
+                'data'    => ['raffle'=>null]], 200);
+        }
+
+}
+
+
+ public function searchRaffleByName(Request $request){
+    
+    $request->validate([
+        'name' => 'required|string|max:255',
+    ]);
+
+    $raffles = Raffle::where('name', 'like', '%' . $request->name . '%')
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+
+    if ($raffles->isNotEmpty()) {
+        return response()->json([
+            'message' => 'Raffles found',
+            'success' => true,
+            'error'   => false,
+            'code'    => 'OK-001',
+            'date' => date("Y-m-d H:i:s"),
+            'data'    => ['raffles'=>$raffles]], 200);
+    } else {
+        return response()->json([
+            'message' => 'No raffles found with that name',
+            'success' => false,
+            'error'   => true,
+            'code'    => 'ERR-023',
+            'date' => date("Y-m-d H:i:s"),
+            'data'    => ['raffles'=>[]]], 404);
+    }
+ }
+
+   public function searchRaffle(Request $request)
+    {
+        // 1. Validación
+        $request->validate([
+            'user_id' => 'required|integer',
+            'search'  => 'required|string|min:1|max:100',
+        ]);
+
+        $search = trim($request->input('search'));
+        $userId = (int) $request->input('user_id');
+
+        // 2. Decidir si es id o nombre
+        //    ctype_digit("") es false, pero ya validamos min:1
+        $esId = ctype_digit($search);
+
+        // 3. Construir query
+        $query = Raffle::query();
+
+        if ($esId) {
+            $query->where('id', (int) $search);
+        } else {
+            // Búsqueda por nombre (LIKE, case-insensitive según collation)
+            $query->where('name', 'like', '%' . $search . '%');
+        }
+
+        $raffle = $query->orderBy('created_at', 'desc')->first();
+
+        // 4. No encontrado
+        if (!$raffle) {
+            return response()->json([
+                'message' => $esId
+                    ? "No se encontró un sorteo con ID {$search}"
+                    : "No se encontró un sorteo con nombre que contenga \"{$search}\"",
+                'success' => false,
+                'error'   => false,
+                'code'    => 'ERR-023',
+                'date'    => now()->format('Y-m-d H:i:s'),
+                'data'    => ['raffle' => null],
+            ], 200);
+        }
+
+        // 5. Verificar propiedad
+        if ((int) $raffle->user_id !== $userId) {
+            return response()->json([
+                'message' => 'Este sorteo pertenece a otro usuario',
+                'success' => false,
+                'error'   => false,
+                'code'    => 'ERR-034',
+                'date'    => now()->format('Y-m-d H:i:s'),
+                'data'    => ['raffle' => null],
+            ], 200);
+        }
+
+        // 6. Éxito
+        return response()->json([
+            'message' => $esId
+                ? 'Sorteo encontrado por ID'
+                : 'Sorteo encontrado por nombre',
+            'success' => true,
+            'error'   => false,
+            'code'    => 'OK-002',
+            'date'    => now()->format('Y-m-d H:i:s'),
+            'data'    => ['raffle' => $raffle],
+        ], 200);
+    }
+
 }
