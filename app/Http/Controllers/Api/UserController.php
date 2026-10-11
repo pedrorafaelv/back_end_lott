@@ -544,5 +544,62 @@ public function usersList(Request $request, $localId)
             ],
         ]);
     }
+
+    /**
+ * 🔍 ENDPOINT: Buscar usuarios (Admin)
+ * GET /api/admin/users/search?q=...
+ */
+public function searchUsers(Request $request)
+{
+    try {
+        $query = $request->q;
+
+        if (!$query || strlen($query) < 2) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'message' => 'Ingresa al menos 2 caracteres'
+            ], 200);
+        }
+
+        $users = User::where(function ($q) use ($query) {
+                $q->where('id', $query)
+                  ->orWhere('name', 'like', '%' . $query . '%')
+                  ->orWhere('email', 'like', '%' . $query . '%');
+            })
+            ->select('id', 'name', 'email', 'local_id')
+            ->limit(20)
+            ->get();
+
+        // Agregar balance a cada usuario
+        $usersWithBalance = $users->map(function ($user) {
+            $balances = DB::table('accounts')
+                ->where('user_id', $user->id)
+                ->select('currency_code', DB::raw('SUM(amount) as total_amount'), DB::raw('SUM(credit_promotion) as total_promo'))
+                ->groupBy('currency_code')
+                ->get()
+                ->keyBy('currency_code');
+
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'local_id' => $user->local_id,
+                'balances' => $balances,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $usersWithBalance,
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 }
 

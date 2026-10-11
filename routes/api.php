@@ -164,3 +164,23 @@ Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
     // Route::post('/exchange',[AuthController::class, 'exchange']);
 
 });
+
+// ============================================
+// RUTAS ADMIN - DEPÓSITOS
+// ============================================
+Route::prefix('admin/deposits')->middleware(['auth:sanctum', 'admin'])->group(function () {
+    Route::get('/', [DepositController::class, 'index']);
+    Route::get('/stats', [DepositController::class, 'stats']);
+    Route::get('/export', [DepositController::class, 'export']);
+    Route::post('/manual', [DepositController::class, 'createManual']);
+    Route::get('/{id}', [DepositController::class, 'show']);
+    Route::post('/{id}/approve', [DepositController::class, 'approve']);
+    Route::post('/{id}/reject', [DepositController::class, 'reject']);
+    Route::post('/{id}/complete', [DepositController::class, 'complete']);
+});
+
+// ============================================
+// BUSCAR USUARIOS (Admin)
+// ============================================
+Route::get('/admin/users/search', [UserController::class, 'searchUsers'])
+    ->middleware(['auth:sanctum', 'admin']);
