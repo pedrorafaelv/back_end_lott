@@ -8,6 +8,7 @@ use App\Models\Currency;
 use App\Models\Raffle;
 use App\Models\Via;
 use App\Models\WithdrawalRequest;
+use App\Models\DepositRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -32,7 +33,7 @@ class AccountController extends Controller
             $currencies = DB::table('accounts')
                 ->where('user_id', $userId)
                 ->distinct()
-                ->pluck('currency_code')
+                ->pluck('currency_id')
                 ->toArray();
 
             // 2. Calcular balances por moneda
@@ -109,7 +110,7 @@ class AccountController extends Controller
     {
         try {
             $userId = $request->user_id;
-            $currency = $request->currency_code;
+            $currency = $request->currency_id;
             $perPage = $request->per_page ?? 20;
             $page = $request->page ?? 1;
 
@@ -124,7 +125,7 @@ class AccountController extends Controller
 
             // Filtro por moneda
             if ($currency) {
-                $query->where('accounts.currency_code', $currency);
+                $query->where('accounts.currency_id', $currency);
             }
 
             // Filtro por vía
@@ -200,7 +201,7 @@ class AccountController extends Controller
         $request->validate([
             'user_id' => 'required|integer',
             'raffle_id' => 'required|integer',
-            'currency_code' => 'required|string',
+            'currency_id' => 'required|string',
         ]);
 
         $raffle = Raffle::find($request->raffle_id);
@@ -208,8 +209,8 @@ class AccountController extends Controller
             return response()->json(['error' => 'Raffle not found'], 404);
         }
 
-        $balance = $this->getBalance($request->user_id, $request->currency_code);
-        $promo = $this->getPromoBalance($request->user_id, $request->currency_code);
+        $balance = $this->getBalance($request->user_id, $request->currency_id);
+        $promo = $this->getPromoBalance($request->user_id, $request->currency_id);
 
         $canUsePromo = $raffle->allow_promotional_bet;
         $totalAvailable = $canUsePromo ? $balance + $promo : $balance;
@@ -254,7 +255,7 @@ class AccountController extends Controller
         $request->validate([
             'user_id' => 'required|integer',
             'raffle_id' => 'required|integer',
-            'currency_code' => 'required|string',
+            'currency_id' => 'required|string',
         ]);
 
         DB::beginTransaction();
@@ -265,8 +266,8 @@ class AccountController extends Controller
                 return response()->json(['error' => 'Raffle not found'], 404);
             }
 
-            $balance = $this->getBalance($request->user_id, $request->currency_code);
-            $promo = $this->getPromoBalance($request->user_id, $request->currency_code);
+            $balance = $this->getBalance($request->user_id, $request->currency_id);
+            $promo = $this->getPromoBalance($request->user_id, $request->currency_id);
             $canUsePromo = $raffle->allow_promotional_bet;
             $totalAvailable = $canUsePromo ? $balance + $promo : $balance;
 
@@ -297,7 +298,7 @@ class AccountController extends Controller
             // Crear la transacción
             $account = new Account();
             $account->user_id = $request->user_id;
-            $account->currency_code = $request->currency_code;
+            $account->currency_id = $request->currency_id;
             $account->amount = -$fromAmount;
             $account->credit_promotion = -$fromPromo;
             $account->credit = 0;
@@ -340,7 +341,7 @@ class AccountController extends Controller
         $request->validate([
             'user_id' => 'required|integer',
             'raffle_id' => 'required|integer',
-            'currency_code' => 'required|string',
+            'currency_id' => 'required|string',
             'amount' => 'required|numeric|min:0',
             'type' => 'required|in:line,full',  // Tipo de premio
         ]);
@@ -364,13 +365,13 @@ class AccountController extends Controller
                 return response()->json(['error' => 'Este premio ya fue cobrado'], 401);
             }
 
-            $balance = $this->getBalance($request->user_id, $request->currency_code);
-            $promo = $this->getPromoBalance($request->user_id, $request->currency_code);
+            $balance = $this->getBalance($request->user_id, $request->currency_id);
+            $promo = $this->getPromoBalance($request->user_id, $request->currency_id);
             $awardVia = Via::where('code', 'award')->first();
 
             $account = new Account();
             $account->user_id = $request->user_id;
-            $account->currency_code = $request->currency_code;
+            $account->currency_id = $request->currency_id;
             $account->amount = $request->amount;
             $account->credit_promotion = 0;
             $account->credit = 0;
@@ -410,7 +411,7 @@ class AccountController extends Controller
     {
         $request->validate([
             'user_id' => 'required|integer',
-            'currency_code' => 'required|string',
+            'currency_id' => 'required|string',
             'amount' => 'required|numeric',
             'via_id' => 'required|integer|exists:vias,id',
             'description' => 'nullable|string',
@@ -418,12 +419,12 @@ class AccountController extends Controller
 
         DB::beginTransaction();
         try {
-            $balance = $this->getBalance($request->user_id, $request->currency_code);
-            $promo = $this->getPromoBalance($request->user_id, $request->currency_code);
+            $balance = $this->getBalance($request->user_id, $request->currency_id);
+            $promo = $this->getPromoBalance($request->user_id, $request->currency_id);
 
             $account = new Account();
             $account->user_id = $request->user_id;
-            $account->currency_code = $request->currency_code;
+            $account->currency_id = $request->currency_id;
             $account->amount = $request->amount;
             $account->credit = $request->credit ?? 0;
             $account->credit_promotion = $request->credit_promotion ?? 0;
@@ -464,7 +465,7 @@ class AccountController extends Controller
     {
         $request->validate([
             'user_id' => 'required|integer',
-            'currency_code' => 'required|string',
+            'currency_id' => 'required|string',
             'amount' => 'required|numeric|min:1',
             'via_id' => 'required|integer|exists:vias,id',
             'payment_data' => 'nullable|array',
@@ -472,7 +473,7 @@ class AccountController extends Controller
 
         DB::beginTransaction();
         try {
-            $balance = $this->getBalance($request->user_id, $request->currency_code);
+            $balance = $this->getBalance($request->user_id, $request->currency_id);
 
             if ($request->amount > $balance) {
                 DB::rollBack();
@@ -485,7 +486,7 @@ class AccountController extends Controller
             // Obtener límites
             $limits = DB::table('transaction_limits')
                 ->where('user_id', $request->user_id)
-                ->where('currency_code', $request->currency_code)
+                ->where('currency_id', $request->currency_id)
                 ->first();
 
             if ($limits) {
@@ -501,7 +502,7 @@ class AccountController extends Controller
                 // Verificar límite diario
                 $todayTotal = DB::table('withdrawal_requests')
                     ->where('user_id', $request->user_id)
-                    ->where('currency_code', $request->currency_code)
+                    ->where('currency_id', $request->currency_id)
                     ->whereDate('created_at', today())
                     ->whereIn('status', ['pending', 'approved', 'completed'])
                     ->sum('amount');
@@ -527,7 +528,7 @@ class AccountController extends Controller
 
             $withdrawal = new WithdrawalRequest();
             $withdrawal->user_id = $request->user_id;
-            $withdrawal->currency_code = $request->currency_code;
+            $withdrawal->currency_id = $request->currency_id;
             $withdrawal->amount = $request->amount;
             $withdrawal->commission = $commission;
             $withdrawal->net_amount = $netAmount;   
@@ -596,16 +597,16 @@ class AccountController extends Controller
     {
         $amount = DB::table('accounts')
             ->where('user_id', $userId)
-            ->where('currency_code', $currency)
+            ->where('currency_id', $currency)
             ->sum('amount');
 
         $promo = DB::table('accounts')
             ->where('user_id', $userId)
-            ->where('currency_code', $currency)
+            ->where('currency_id', $currency)
             ->sum('credit_promotion');
 
         return [
-            'currency_code' => $currency,
+            'currency_id' => $currency,
             'amount' => round($amount ?? 0, 2),
             'credit_promotion' => round($promo ?? 0, 2),
             'total' => round(($amount ?? 0) + ($promo ?? 0), 2),
@@ -617,7 +618,7 @@ class AccountController extends Controller
         $totals = DB::table('accounts')
             ->leftJoin('vias', 'accounts.via_id', '=', 'vias.id')
             ->where('accounts.user_id', $userId)
-            ->where('accounts.currency_code', $currency)
+            ->where('accounts.currency_id', $currency)
             ->select(
                 DB::raw("SUM(CASE WHEN vias.code = 'deposit' THEN accounts.deposit ELSE 0 END) as deposits"),
                 DB::raw("SUM(CASE WHEN vias.code = 'withdrawal' THEN accounts.withdrawal ELSE 0 END) as withdrawals"),
@@ -640,7 +641,7 @@ class AccountController extends Controller
     {
         return DB::table('accounts')
             ->where('user_id', $userId)
-            ->where('currency_code', $currency)
+            ->where('currency_id', $currency)
             ->sum('amount') ?? 0;
     }
 
@@ -648,7 +649,159 @@ class AccountController extends Controller
     {
         return DB::table('accounts')
             ->where('user_id', $userId)
-            ->where('currency_code', $currency)
+            ->where('currency_id', $currency)
             ->sum('credit_promotion') ?? 0;
     }
+    // ============================================================
+// 📥 ENDPOINT: Usuario reporta un depósito
+// POST /api/account/requestDeposit
+// ============================================================
+public function requestDeposit(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'user_id' => 'required|integer|exists:users,id',
+        'currency_id' => 'required|string|max:10',
+        'amount' => 'required|numeric|min:0.01',
+        'via_id' => 'required|integer|exists:vias,id',
+        'reference' => 'nullable|string|max:255',
+        'user_notes' => 'nullable|string|max:1000',
+        'voucher' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // 5MB
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    DB::beginTransaction();
+    try {
+        // Verificar que no haya una solicitud duplicada (mismo monto y referencia)
+        $exists = DepositRequest::where('user_id', $request->user_id)
+            ->where('currency_id', $request->currency_id)
+            ->where('amount', $request->amount)
+            ->where('reference', $request->reference)
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($exists) {
+            DB::rollBack();
+            return response()->json([
+                'error' => 'Ya existe una solicitud similar pendiente'
+            ], 409);
+        }
+
+        // Guardar comprobante si se envió
+        $voucherPath = null;
+        if ($request->hasFile('voucher')) {
+            $file = $request->file('voucher');
+            $filename = 'voucher_' . $request->user_id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $voucherPath = $file->storeAs('vouchers', $filename, 'public');
+        }
+
+        // Crear solicitud
+        $deposit = DepositRequest::create([
+            'user_id' => $request->user_id,
+            'currency_id' => $request->currency_id,
+            'amount' => $request->amount,
+            'via_id' => $request->via_id,
+            'reference' => $request->reference,
+            'voucher_path' => $voucherPath,
+            'status' => 'pending',
+            'user_notes' => $request->user_notes,
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Solicitud de depósito creada. Espera la aprobación.',
+            'deposit' => $deposit,
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'error' => 'Error al crear la solicitud: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+// ============================================================
+// ❌ ENDPOINT: Usuario cancela solicitud de depósito
+// POST /api/account/cancelDeposit
+// ============================================================
+public function cancelDeposit(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'deposit_id' => 'required|integer',
+        'user_id' => 'required|integer|exists:users,id',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    $deposit = DepositRequest::find($request->deposit_id);
+
+    if (!$deposit) {
+        return response()->json(['error' => 'Solicitud no encontrada'], 404);
+    }
+
+    if ($deposit->user_id != $request->user_id) {
+        return response()->json(['error' => 'No autorizado'], 403);
+    }
+
+    if ($deposit->status !== 'pending') {
+        return response()->json([
+            'error' => 'Solo se pueden cancelar solicitudes pendientes',
+            'current_status' => $deposit->status
+        ], 401);
+    }
+
+    $deposit->status = 'cancelled';
+    $deposit->cancelled_at = now();
+    $deposit->save();
+
+    // Eliminar comprobante si existe
+    if ($deposit->voucher_path && Storage::disk('public')->exists($deposit->voucher_path)) {
+        Storage::disk('public')->delete($deposit->voucher_path);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Solicitud cancelada correctamente',
+        'deposit' => $deposit,
+    ], 200);
+}
+
+// ============================================================
+// 📋 ENDPOINT: Listar mis depósitos
+// GET /api/account/myDeposits?user_id=X
+// ============================================================
+public function myDeposits(Request $request)
+{
+    try {
+        $userId = $request->user_id;
+
+        if (!$userId) {
+            return response()->json(['error' => 'user_id is required'], 400);
+        }
+
+        $deposits = DepositRequest::with('via')
+            ->where('user_id', $userId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $deposits,
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 }

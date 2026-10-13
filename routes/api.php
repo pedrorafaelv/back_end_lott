@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Admin\WithdrawalController;
 use App\Http\Controllers\Admin\UserLevelController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Api\ViaController;
+use App\Http\Controllers\Api\CurrencyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -138,6 +140,9 @@ Route::prefix('account')->group(function () {
     Route::post('/store', [AccountController::class, 'store']);
     Route::post('/requestWithdrawal', [AccountController::class, 'requestWithdrawal']);
     Route::post('/cancelWithdrawal', [AccountController::class, 'cancelWithdrawal']);
+    Route::post('/requestDeposit', [AccountController::class, 'requestDeposit']);
+    Route::post('/cancelDeposit', [AccountController::class, 'cancelDeposit']);
+    Route::get('/myDeposits', [AccountController::class, 'myDeposits']);
     });
     
     
@@ -184,3 +189,43 @@ Route::prefix('admin/deposits')->middleware(['auth:sanctum', 'admin'])->group(fu
 // ============================================
 Route::get('/admin/users/search', [UserController::class, 'searchUsers'])
     ->middleware(['auth:sanctum', 'admin']);
+
+
+ // ============================================
+// RUTAS DE TASA DE CAMBIO (Exchange Rate)
+// ============================================   
+
+Route::prefix('exchange-rate')->group(function () {
+    // Consultar la tasa desde la BD (rápido, para frontend)
+    Route::get('/latest', [ExchangeRateController::class, 'latest']);
+    
+    // Forzar scraping y actualizar (más lento, usar con moderación)
+    Route::post('/refresh', [ExchangeRateController::class, 'refresh']);
+});
+
+
+
+Route::prefix('vias')->group(function () {
+    // Listados
+    Route::get('/', [ViaController::class, 'index']);
+    Route::get('/credits', [ViaController::class, 'credits']);
+    Route::get('/debits', [ViaController::class, 'debits']);
+    Route::get('/neutral', [ViaController::class, 'neutral']);
+    Route::get('/creditsCanBeSeeByUser', [ViaController::class, 'creditsCanBeSeeByUser']);
+    Route::get('/debitsCanBeSeeByUser', [ViaController::class, 'debitsCanBeSeeByUser']);
+    // Búsqueda por código (antes de {via} para evitar conflicto)
+    Route::get('/code/{code}', [ViaController::class, 'showByCode']);
+
+    // CRUD
+    Route::get('/{via}', [ViaController::class, 'show']);
+    // Route::match(['put', 'patch'], '/{via}', [ViaController::class, 'update']);
+
+    // Acción especial
+    // Route::patch('/{via}/toggle', [ViaController::class, 'toggle']);
+});
+
+Route::prefix('currencies')->group(function () {
+    // Listados
+    Route::get('/', [CurrencyController::class, 'index']);
+    Route::get('/canBeSeeByUser', [CurrencyController::class, 'canBeSeeByUser']);
+});

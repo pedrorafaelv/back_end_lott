@@ -16,6 +16,13 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // $schedule->command('inspire')->hourly();
+          $schedule->command('bcv:update-rate')
+        ->dailyAt('17:00')
+        ->timezone('America/Caracas')
+        ->withoutOverlapping()
+        ->onFailure(function () {
+            \Log::error('BCV: Falló la actualización programada de tasa');
+        });
     }
 
     /**
@@ -29,4 +36,5 @@ class Kernel extends ConsoleKernel
 
         require base_path('routes/console.php');
     }
+
 }

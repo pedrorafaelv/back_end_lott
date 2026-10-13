@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('deposit_requests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('currency_code', 10);
+            $table->integer('currency_id', 3);
             $table->decimal('amount', 12, 2);
             $table->foreignId('via_id')->nullable()->constrained('vias');
             $table->string('reference')->nullable();

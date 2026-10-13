@@ -11,7 +11,7 @@ class Account extends Model
 
     protected $fillable = [
         'user_id',
-        'currency_code',
+        'currency_id',
         'amount',
         'balance_after',
         'promo_after',
@@ -55,5 +55,10 @@ class Account extends Model
     public function raffle()
     {
         return $this->belongsTo(Raffle::class);
+    }
+
+     public function currency()
+    {
+        return $this->hasOne(Currency::class);
     }
 }

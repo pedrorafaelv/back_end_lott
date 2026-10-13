@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Via extends Model
 {
+
+    use HasFactory;
+
     protected $table = 'vias';
 
     protected $fillable = [
@@ -41,13 +45,20 @@ class Via extends Model
 
     public function scopeOrdered(Builder $q): Builder
     {
-        return $q->orderBy('display_order');
+        return $q->where('display_order', '!=', null);
     }
+    
+    public function scopeCanSeeByUser(Builder $q): Builder
+    {
+        return $q->where('display_order', 1);
+    }
+
 
     // ==================== Helpers ====================
     public function isCredit(): bool  { return $this->type === 'credit'; }
     public function isDebit(): bool   { return $this->type === 'debit'; }
     public function isNeutral(): bool { return $this->type === 'neutral'; }
+
 
     /**
      * Determina el signo a aplicar según contexto.
