@@ -465,7 +465,7 @@ class AccountController extends Controller
     {
         $request->validate([
             'user_id' => 'required|integer',
-            'currency_id' => 'required|string',
+            'currency_id' => 'required|number',
             'amount' => 'required|numeric|min:1',
             'via_id' => 'required|integer|exists:vias,id',
             'payment_data' => 'nullable|array',

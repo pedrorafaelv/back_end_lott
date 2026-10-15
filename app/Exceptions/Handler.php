@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 
@@ -32,8 +33,11 @@ class Handler extends ExceptionHandler
      *
      * @return void
      */
-     public function register()
+    public function register()
     {
+        // ──────────────────────────────────────────────────────
+        // 1. Autenticación (existente, sin cambios funcionales)
+        // ──────────────────────────────────────────────────────
         $this->renderable(function (AuthenticationException $e, $request) {
             if ($request->is('api/*')) {
                 return response()->json([
@@ -42,7 +46,21 @@ class Handler extends ExceptionHandler
                 ], 401);
             }
         });
-    }   
+
+        // ──────────────────────────────────────────────────────
+        // 2. Versión de términos no vigente (NUEVO)
+        // ──────────────────────────────────────────────────────
+        $this->renderable(function (VersionNotActiveException $e, $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'VERSION_NOT_ACTIVE',
+                    'message' => $e->getMessage(),
+                ], 400);
+            }
+        });
+    }
+
     // public function register()
     // {
     //     $this->reportable(function (Throwable $e) {

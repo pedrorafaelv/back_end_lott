@@ -65,12 +65,14 @@ class FirebaseService
 
     public function verifyIdToken(string $idToken): array
     {
-        $verified = $this->auth->verifyIdToken($idToken);
+        // true = comprueba además que el token no fue revocado (1 consulta extra a Firebase)
+        $claims = $this->auth->verifyIdToken($idToken, false)->claims();
 
         return [
-            'uid'   => $verified->claims()->get('sub'),
-            'email' => $verified->claims()->get('email'),
-            'name'  => $verified->claims()->get('name'),
+            'uid'            => $claims->get('sub'),
+            'email'          => $claims->get('email'),
+            'name'           => $claims->get('name'),
+            'email_verified' => (bool) $claims->get('email_verified', false),
         ];
     }
 }

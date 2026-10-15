@@ -11,7 +11,7 @@ class DepositRequest extends Model
 
     protected $fillable = [
         'user_id',
-        'currency_code',
+        'currency_id',
         'amount',
         'via_id',
         'reference',
@@ -47,5 +47,9 @@ class DepositRequest extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+    
+    public function currency(){
+        return $this->belongsTo(Currency::class);
     }
 }

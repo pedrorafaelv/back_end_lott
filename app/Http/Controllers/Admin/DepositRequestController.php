@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Admin;   // ✅ correcto
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
@@ -10,89 +10,91 @@ use App\Models\Via;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use  App\Http\Resources\DepositRequestResource;
 
-class DepositController extends Controller
+class DepositRequestController extends Controller
 {
     /**
      * 📋 Listar solicitudes de depósito (Admin)
      * GET /api/admin/deposits
      */
     public function index(Request $request)
-    {
-        try {
-            $perPage = $request->per_page ?? 20;
-            $page = $request->page ?? 1;
+{
+    try {
+        $perPage = $request->per_page ?? 20;
+        $page = $request->page ?? 1;
 
-            $query = DepositRequest::with(['user', 'via', 'approvedBy']);
+        // 👇 Añadido 'currency'
+        $query = DepositRequest::with(['user', 'via', 'approvedBy', 'currency']);
 
-            if ($request->status) {
-                $query->where('status', $request->status);
-            }
-
-            if ($request->currency_code) {
-                $query->where('currency_code', $request->currency_code);
-            }
-
-            if ($request->user_id) {
-                $query->where('user_id', $request->user_id);
-            }
-
-            if ($request->date_from) {
-                $query->where('created_at', '>=', $request->date_from . ' 00:00:00');
-            }
-
-            if ($request->date_to) {
-                $query->where('created_at', '<=', $request->date_to . ' 23:59:59');
-            }
-
-            if ($request->search) {
-                $query->whereHas('user', function ($q) use ($request) {
-                    $q->where('name', 'like', '%' . $request->search . '%')
-                      ->orWhere('email', 'like', '%' . $request->search . '%')
-                      ->orWhere('id', 'like', '%' . $request->search . '%');
-                });
-            }
-
-            $total = $query->count();
-
-            $deposits = $query
-                ->orderBy('created_at', 'desc')
-                ->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get();
-
-            $stats = [
-                'pending_count' => DepositRequest::where('status', 'pending')->count(),
-                'pending_amount' => DepositRequest::where('status', 'pending')->sum('amount'),
-                'approved_today' => DepositRequest::where('status', 'approved')
-                    ->whereDate('approved_at', today())->count(),
-                'completed_today' => DepositRequest::where('status', 'completed')
-                    ->whereDate('completed_at', today())->count(),
-                'rejected_today' => DepositRequest::where('status', 'rejected')
-                    ->whereDate('updated_at', today())->count(),
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'deposits' => $deposits,
-                    'stats' => $stats,
-                    'pagination' => [
-                        'total' => $total,
-                        'per_page' => $perPage,
-                        'current_page' => $page,
-                        'last_page' => ceil($total / $perPage),
-                    ]
-                ]
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Error: ' . $e->getMessage()
-            ], 500);
+        if ($request->status) {
+            $query->where('status', $request->status);
         }
+
+        if ($request->currency_id) {
+            $query->where('currency_id', $request->currency_id);
+        }
+
+        if ($request->user_id) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        if ($request->date_from) {
+            $query->where('created_at', '>=', $request->date_from . ' 00:00:00');
+        }
+
+        if ($request->date_to) {
+            $query->where('created_at', '<=', $request->date_to . ' 23:59:59');
+        }
+
+        if ($request->search) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%')
+                  ->orWhere('email', 'like', '%' . $request->search . '%')
+                  ->orWhere('id', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        $total = $query->count();
+
+        $deposits = $query
+            ->orderBy('created_at', 'desc')
+            ->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get();
+
+        $stats = [
+            'pending_count'   => DepositRequest::where('status', 'pending')->count(),
+            'pending_amount'  => DepositRequest::where('status', 'pending')->sum('amount'),
+            'approved_today'  => DepositRequest::where('status', 'approved')
+                                    ->whereDate('approved_at', today())->count(),
+            'completed_today' => DepositRequest::where('status', 'completed')
+                                    ->whereDate('completed_at', today())->count(),
+            'rejected_today'  => DepositRequest::where('status', 'rejected')
+                                    ->whereDate('updated_at', today())->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'deposits'   => DepositRequestResource::collection($deposits),
+                'stats'      => $stats,
+                'pagination' => [
+                    'total'        => $total,
+                    'per_page'     => $perPage,
+                    'current_page' => $page,
+                    'last_page'    => ceil($total / $perPage),
+                ],
+            ],
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Error: ' . $e->getMessage(),
+        ], 500);
     }
+}
 
     /**
      * 🔍 Ver detalle de una solicitud (Admin)
@@ -109,12 +111,12 @@ class DepositController extends Controller
 
             $balance = DB::table('accounts')
                 ->where('user_id', $deposit->user_id)
-                ->where('currency_code', $deposit->currency_code)
+                ->where('currency_id', $deposit->currency_id)
                 ->sum('amount');
 
             $promo = DB::table('accounts')
                 ->where('user_id', $deposit->user_id)
-                ->where('currency_code', $deposit->currency_code)
+                ->where('currency_id', $deposit->currency_id)
                 ->sum('credit_promotion');
 
             return response()->json([
@@ -275,12 +277,12 @@ class DepositController extends Controller
             // Obtener balance actual
             $balance = DB::table('accounts')
                 ->where('user_id', $deposit->user_id)
-                ->where('currency_code', $deposit->currency_code)
+                ->where('currency_id', $deposit->currency_id)
                 ->sum('amount');
 
             $promo = DB::table('accounts')
                 ->where('user_id', $deposit->user_id)
-                ->where('currency_code', $deposit->currency_code)
+                ->where('currency_id', $deposit->currency_id)
                 ->sum('credit_promotion');
 
             $depositVia = Via::where('code', 'deposit')->first();
@@ -288,7 +290,7 @@ class DepositController extends Controller
             // Crear transacción
             $account = new Account();
             $account->user_id = $deposit->user_id;
-            $account->currency_code = $deposit->currency_code;
+            $account->currency_id = $deposit->currency_id;
             $account->amount = $deposit->amount;
             $account->credit_promotion = 0;
             $account->credit = 0;
@@ -333,7 +335,7 @@ class DepositController extends Controller
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|integer|exists:users,id',
             'admin_id' => 'required|integer|exists:users,id',
-            'currency_code' => 'required|string|max:10',
+            'currency_id' => 'required|string|max:10',
             'amount' => 'required|numeric|min:0.01',
             'via_id' => 'required|integer|exists:vias,id',
             'reference' => 'nullable|string|max:255',
@@ -352,12 +354,12 @@ class DepositController extends Controller
         try {
             $balance = DB::table('accounts')
                 ->where('user_id', $request->user_id)
-                ->where('currency_code', $request->currency_code)
+                ->where('currency_id', $request->currency_id)
                 ->sum('amount');
 
             $promo = DB::table('accounts')
                 ->where('user_id', $request->user_id)
-                ->where('currency_code', $request->currency_code)
+                ->where('currency_id', $request->currency_id)
                 ->sum('credit_promotion');
 
             $promotionAmount = $request->add_promotion ? ($request->promotion_amount ?? 0) : 0;
@@ -365,7 +367,7 @@ class DepositController extends Controller
             // Crear transacción de depósito
             $account = new Account();
             $account->user_id = $request->user_id;
-            $account->currency_code = $request->currency_code;
+            $account->currency_id = $request->currency_id;
             $account->amount = $request->amount;
             $account->credit_promotion = $promotionAmount;
             $account->credit = 0;
@@ -423,8 +425,8 @@ class DepositController extends Controller
                 ],
                 'by_currency' => DB::table('deposit_requests')
                     ->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
-                    ->select('currency_code', DB::raw('COUNT(*) as count'), DB::raw('SUM(amount) as total'))
-                    ->groupBy('currency_code')
+                    ->select('currency_id', DB::raw('COUNT(*) as count'), DB::raw('SUM(amount) as total'))
+                    ->groupBy('currency_id')
                     ->get(),
                 'daily' => DB::table('deposit_requests')
                     ->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
@@ -462,7 +464,7 @@ class DepositController extends Controller
             $query = DepositRequest::with(['user', 'via']);
 
             if ($request->status) $query->where('status', $request->status);
-            if ($request->currency_code) $query->where('currency_code', $request->currency_code);
+            if ($request->currency_id) $query->where('currency_id', $request->currency_id);
             if ($request->date_from) $query->where('created_at', '>=', $request->date_from . ' 00:00:00');
             if ($request->date_to) $query->where('created_at', '<=', $request->date_to . ' 23:59:59');
 

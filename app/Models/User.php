@@ -25,40 +25,14 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $fillable = [
-        'name',
-        'email',
-        'email_verified_at',
-        'password',
-        'remember_token',
-        'last_name',
-        'birth_date',
-        'document',
-        'gender',
-        'phone',
-        'phone_verified_at',
-        'country',
-        'state',
-        'city',
-        'address',
-        'role',
-        'firebase_localId',
-        'firebase_token',
-        'firebase_last_conection',
-        'is_admin',
-        'created_at',
-        'updated_at'
-    ];
-
+    protected $fillable = ['name', 'email', 'firebase_localId'];
     /**
      * The attributes that should be hidden for serialization.
      *
      * @var array<int, string>
      */
     protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    'password', 'remember_token', 'document', 'registration_ip',];
 
     /**
      * The attributes that should be cast.
@@ -66,9 +40,13 @@ class User extends Authenticatable
      * @var array<string, string>
      */
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'is_admin'=>'boolean',
-    ];
+    'email_verified_at' => 'datetime',
+    'phone_verified_at' => 'datetime',
+    'registered_at'     => 'datetime',
+    'is_admin'          => 'boolean',
+    'birth_date'        => 'date',
+    'document'          => 'encrypted',   
+];
     public function accounts(){
 
         return $this->hasMany(account::class);
