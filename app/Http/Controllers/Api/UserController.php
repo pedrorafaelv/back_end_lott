@@ -40,55 +40,6 @@ class UserController extends Controller
         //
     }
 
-    // /**
-    //  * Store a newly created resource in storage.
-    //  *
-    //  * @param  \Illuminate\Http\Request  $request
-    //  * @return \Illuminate\Http\Response
-    //  */
-    // public function store(Request $request)
-    // {
-    //      $us = "";
-    //     $us = User::where('email', $request->email)->get();
-    //     if ($us !=""){
-    //         $user = new User();
-    //         $user->name = $request->name;
-    //         $user->email = $request->email;
-    //         $user->email_verified_at = $request->email_verified_at;
-    //         $user->remember_token = $request->remember_token;
-    //         $user->last_name = $request->last_name;
-    //         $user->birth_date = $request->birth_date;
-    //         $user->document = $request->document;
-    //         $user->gender = $request->gender;
-    //         $user->phone = $request->phone;
-    //         $user->phone_verified_at = $request->phone_verified_at;
-    //         $user->country = $request->country;
-    //         $user->state = $request->state;
-    //         $user->city = $request->city;
-    //         $user->address = $request->address;
-    //         $user->firebase_localId = $request->firebase_localId;
-    //         $user->firebase_token = $request->firebase_token;
-    //         $user->is_admin= $request->is_admin;
-    //         $user->firebase_last_connection = $request->firebase_last_connection;
-    //         $res = $user->save();
-    //         if ($res){
-    //             return response()->json(['error'=> false,
-    //                                     'success'=>true,
-    //                                     'message'=>'User created',
-    //                                     'code'=>'0001-OK',
-    //                                     'data'=>['user'=>$user]], 200);
-                                            
-    //         }else{
-    //             return response()->json(['error'=>true,
-    //                                     'success'=> false,
-    //                                     'code'=> 'ERR-033',
-    //                                     'message' => 'Error to create User'], 401);
-    //         }
-    //     } return response()->json(['error'=>true,
-    //                                 'sucess'=> false,
-    //                                 'code'=>'ERR-034',
-    //                                 'message' => 'User duplicated'], 401);
-    // }
 
     /**
      * Store a newly created resource in storage.
@@ -96,37 +47,7 @@ class UserController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    // public function newUser(Request $request)
-    // {
-    //      $us = "";
-    //     $us = User::where('email', $request->email)->get();
-    //     if ($us !=""){
-    //         $user = new User();
-    //         $user->name = $request->name;
-    //         $user->email = $request->email;
-    //         $user->password = $request->pass;
-    //         $user->firebase_localId = $request->firebase_localId;
-    //         $user->firebase_token = $request->firebase_token;
-    //         $user->firebase_last_connection = date("Y-m-d H:i:s");
-    //         $res = $user->save();
-    //         if ($res){
-    //             return response()->json(['error'=>false,
-    //                                     'success'=>true,
-    //                                     'code'=>'001-OK',
-    //                                     'message'=>'User created',
-    //                                     'user'=>$user], 200);
-    //         }else{
-    //             return response()->json(['error'=>true,
-    //                                     'success'=>false,
-    //                                     'code'=>'ERR-032',
-    //                                     'message' => 'Error to create User'], 401);
-    //         }
-    //     } return response()->json(['code'=>'ERR-032',
-    //                                 'error'=>true,
-    //                                 'success'=> false,
-    //                                 'message' => 'User duplicated'], 401);
-    // }
-
+   
 
     /**
      * Display the specified resource.
@@ -134,9 +55,37 @@ class UserController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+
+    public function getUserData(Request $request)
+{
+    $user = User::with('Roles')->find($request->id);
+
+    if (!$user) {
+        return response()->json([
+            'success' => false, 'error' => true, 'code' => 'ERR-041',
+            'message' => 'User not found', 'data' => null,
+        ], 404);
+    }
+
+    $level = $user->levels()->wherePivot('is_current', true)->first()
+          ?? Level::where('slug', 'novato')->first();
+
+    $roles = $user->Roles->pluck('name')->values(); // array limpio
+
+    return response()->json([
+        'success' => true, 'error' => false, 'code' => 'OK-001',
+        'data' => [
+            'user'  => $user,
+            'level' => $level,
+            'roles' => $roles,
+        ],
+    ], 200);
+}
+
+
     public function show($id)
     {
-        //
+       
     }
 
     /**
@@ -162,20 +111,6 @@ class UserController extends Controller
         //
     }
 
-    // public function updateToken(Request $request, $id)
-    // {
-    //     $us = User::where('email', $request->email)->get();
-    //     if ($us){
-    //         $us->remember_token = $request->remember_token;
-    //         $res= $us->save();
-    //         return response()->json(['error'=>false,
-    //                                 'success'=> true,
-    //                                 'code'=>'001-OK',
-    //                                 'message' => 'User Token updated'], 200);
-    //     } return response()->json(['error' => 'Error to udate User'], 401);
-    // }
-
-
     /**
      * Remove the specified resource from storage.
      *
@@ -187,53 +122,7 @@ class UserController extends Controller
         //
     }
     
-    // public function getGrupos(Request $request){
-
-    //     // $user = User::find($request->id);
-    //     $user = $this->targetUser($request, $id);
-    //     $i = 0;
-    //     if ($user->Groups != null){
-    //         if (count($user->Groups)>0){
-    //             $resp = array(
-    //                 'date'=> date("Y-m-d H:i:s"),
-    //                 'User'=> $request->id,
-    //                 'Group'=>$user->Groups,
-    //                 'success' => true,
-    //                 'error' => 'not found',
-    //                 'code' => 'ERR-000',
-    //             );
-    //             return  response()-> json($resp,200);
-    //         }   
-    //     }
-    //      return response()->json(['message'=> 'El usuario '.$request->id. ' No tiene Grupos asociados','success' => false,
-    //                               'error' => true,
-    //                               'success'=>false,
-    //                               'code' => 'ERR-016',], 400);  
-    // }
-
-    // public function putGroup(Request $request){
-
-    //      $g= Group::find($request->group_id);
-    //      $user= User::find($request->user_id);
-    //      $group_user = $user->Groups;
-    //      $i =0;
-    //      foreach ($group_user as $gp ){
-    //         $groups[$i]= $user->id;  
-    //         $i++;
-    //      }
-    //      if ($g!== null && $user !== null ){
- 
-    //          if (in_array( $request->user_id , $groups)){
-    //             return response()->json(['error'=> 'El usuario '. $user->name.' ya pertenece al grupo'. $g->name ], 401);
-    //          }
-    //         $res =  $user->Groups()->attach($request->group_id);
-    //         if ( $res !== null) {
-    //             return response()->json(['message'=>$res. ' El usuario '. $user->nombre .' ha sido agregado al Grupo '. $g->name],200);
-    //         }
-    //     } 
-    //      return response()->json(['error'=> 'No se pudo asociar el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
-    // }
-
+  
     public function putGroup(Request $request, $group_id, $user_id)
     {
         $user  = $this->targetUser($request, $user_id);
@@ -263,59 +152,6 @@ class UserController extends Controller
                                  'message' => "El usuario {$user->name} fue removido del grupo {$group->name}"], 200);
     }
 
-//     public function putOffGroup(Request $request){
-
-//         $g= Group::find($request->group_id);
-//         $user= User::find($request->user_id);
-//         $group_user = $user->Groups;
-//         $i =0;
-//         foreach ($group_user as $gp ){
-//            $groups[$i]= $user->id;  
-//            $i++;
-//         }
-//         if ($g!== null && $user !== null ){
-
-//             if (in_array( $request->user_id , $groups)){
-//                 $res =  $user->Groups()->remove($request->group_id);
-//                 return response()->json(['message'=> 'The User '. $user->name.' ha sido removido del grupo'. $g->name ], 200 );    
-//             }
-//            $res =  $user->Groups()->attach($request->group_id);
-//            if ( $res !== null) {
-//                return response()->json(['error'=>$res. 'The user '. $user->nombre .' no pertenece al Grupo '. $g->name],401);
-//             }
-
-//        } 
-//         return response()->json(['error'=> 'No se pudo remover el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
-//    }
-
-//    public function getUserByFirebase(Request $request){
-
-//     $user = User::where('firebase_localId', $request->firebase_localId)->get();
-//     if ($user!= null){
-//         return response()->json(['message' => 'usuario found',  'user' => $user], 200);
-//     }else{
-//         return response()->json(['error' => 'user not found'], 401);
-//     }
-//    }
-
-
-//    public function updateDataFirebase(Request $request){
-
-//     $user = User::where('firebase_localId', $request->firebase_localId)->get();
-     
-//     if ($user!= null){
-//         $user->firebase_token = $request->token;
-//         $user->firebase_last_connection = $request->last_connection;
-//         $res = $user->save();
-//         if ($res){
-//             return response()->json(['message' => 'Updated user', 'user' => $user], 200);
-//         }else{
-//             return response()->json(['error' => 'error updating user'], 401);
-//         }
-//     }else{
-//          return response()->json(['error'=>'user not found'], 401);
-//     }
-//    }
 
 
    /**
@@ -339,7 +175,7 @@ public function getUserLevel(Request $request)
         return response()->json([
             'success' => false,
             'error'   => true,
-            'code'    => 'ERR-038',
+            'code'    => 'ERR-032',
             'message' => "The User {$request->id} was not found",
         ], 404);
     }
@@ -437,45 +273,18 @@ public function getUserLevel(Request $request)
                 'User'=> $request->id,
                 'Role'=>$role
             );
-            return  response()-> json(['message'=>'Role found','role'=>$resp], 200);
+            return  response()-> json([ 'error'=>false,
+                                        'success'=> true,
+                                        'code'=>'OK-001',
+                                        'message'=>'Role found',
+                                        'role'=>$resp], 200);
         }
-         return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
+         return response()->json(['success'=> false,
+                                  'code' => 'ERR-033',
+                                  'error'=> 'The User '.$request->id. ' has no associated roles'], 401);
     }
 
-//    public function getUserEmailConfirm(Request $request, $email){
-    
-//     // Validar que viene el email
-//     if (empty($email) || $email === 'null') {
-//         return response()->json([
-//             'error' => 'Email inválido o vacío'
-//         ], 400);
-//     }
 
-//     $user = User::where('email', $email)->first();
-
-//     if (!$user) {
-//         return response()->json([
-//             'error' => "El usuario {$email} no existe"
-//         ], 401);
-//     }
-
-//     if (empty($user->email_verified_at)) {
-//         return response()->json([
-//             'error' => "El usuario {$email} no tiene el email confirmado"
-//         ], 401);
-//     }
-
-//     $resp = [
-//         'date'         => date("Y-m-d H:i:s"),
-//         'User'         => $user->name,
-//         'EmailConfirm' => $user->email_verified_at,
-//     ];
-
-//     return response()->json([
-//         'message'     => 'Email confirmado',
-//         'emailConfirm' => $resp
-//     ], 200);
-// }
 
     /**
     * $request->user_id
@@ -490,19 +299,22 @@ public function getUserLevel(Request $request)
             }
         }
         $i = 0;
-        $levels = array();
-        if (count($user->Levels)>0){
-            foreach ($user->Levels as $level ) {
-                $levels[$i] = $level->name;
-            }
+        $level = $user->levels()
+        ->wherePivot('is_current', true)
+        ->first();
+
+        if (!$level) {
+        // Fallback al nivel Novato
+            $level = Level::where('slug', 'novato')->first();
         }
         $permissions = array(
             'date'=> date("Y-m-d H:i:s"),
             'User'=> $request->id,
-            'Level'=>$levels,
+            'Level'=>$level,
             'Role'=>$roles
         );
-         return  response()-> json(['message'=>'Permissions found','Permissions'=>$permissions], 200);
+         return  response()-> json([
+                                    'message'=>'Permissions found','Permissions'=>$permissions], 200);
         //  return response()->json(['error'=> 'The User '.$request->id. ' has no associated roles'], 401);
     } 
 
@@ -635,6 +447,7 @@ public function searchUsers(Request $request)
         ], 500);
     }
 }
+
  private function targetUser(Request $request, $id): User
 {
     $auth = $request->user();
@@ -671,5 +484,230 @@ public function searchUsers(Request $request)
 //         'is_admin' => (bool) $request->user()->is_admin,
 //     ]);
 // }
+//    public function getUserEmailConfirm(Request $request, $email){
+    
+//     // Validar que viene el email
+//     if (empty($email) || $email === 'null') {
+//         return response()->json([
+//             'error' => 'Email inválido o vacío'
+//         ], 400);
+//     }
+
+//     $user = User::where('email', $email)->first();
+
+//     if (!$user) {
+//         return response()->json([
+//             'error' => "El usuario {$email} no existe"
+//         ], 401);
+//     }
+
+//     if (empty($user->email_verified_at)) {
+//         return response()->json([
+//             'error' => "El usuario {$email} no tiene el email confirmado"
+//         ], 401);
+//     }
+
+//     $resp = [
+//         'date'         => date("Y-m-d H:i:s"),
+//         'User'         => $user->name,
+//         'EmailConfirm' => $user->email_verified_at,
+//     ];
+
+//     return response()->json([
+//         'message'     => 'Email confirmado',
+//         'emailConfirm' => $resp
+//     ], 200);
+// }
+ //     public function putOffGroup(Request $request){
+
+//         $g= Group::find($request->group_id);
+//         $user= User::find($request->user_id);
+//         $group_user = $user->Groups;
+//         $i =0;
+//         foreach ($group_user as $gp ){
+//            $groups[$i]= $user->id;  
+//            $i++;
+//         }
+//         if ($g!== null && $user !== null ){
+
+//             if (in_array( $request->user_id , $groups)){
+//                 $res =  $user->Groups()->remove($request->group_id);
+//                 return response()->json(['message'=> 'The User '. $user->name.' ha sido removido del grupo'. $g->name ], 200 );    
+//             }
+//            $res =  $user->Groups()->attach($request->group_id);
+//            if ( $res !== null) {
+//                return response()->json(['error'=>$res. 'The user '. $user->nombre .' no pertenece al Grupo '. $g->name],401);
+//             }
+
+//        } 
+//         return response()->json(['error'=> 'No se pudo remover el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
+//    }
+
+//    public function getUserByFirebase(Request $request){
+
+//     $user = User::where('firebase_localId', $request->firebase_localId)->get();
+//     if ($user!= null){
+//         return response()->json(['message' => 'usuario found',  'user' => $user], 200);
+//     }else{
+//         return response()->json(['error' => 'user not found'], 401);
+//     }
+//    }
+
+
+//    public function updateDataFirebase(Request $request){
+
+//     $user = User::where('firebase_localId', $request->firebase_localId)->get();
+     
+//     if ($user!= null){
+//         $user->firebase_token = $request->token;
+//         $user->firebase_last_connection = $request->last_connection;
+//         $res = $user->save();
+//         if ($res){
+//             return response()->json(['message' => 'Updated user', 'user' => $user], 200);
+//         }else{
+//             return response()->json(['error' => 'error updating user'], 401);
+//         }
+//     }else{
+//          return response()->json(['error'=>'user not found'], 401);
+//     }
+//    }
+  // public function getGrupos(Request $request){
+
+    //     // $user = User::find($request->id);
+    //     $user = $this->targetUser($request, $id);
+    //     $i = 0;
+    //     if ($user->Groups != null){
+    //         if (count($user->Groups)>0){
+    //             $resp = array(
+    //                 'date'=> date("Y-m-d H:i:s"),
+    //                 'User'=> $request->id,
+    //                 'Group'=>$user->Groups,
+    //                 'success' => true,
+    //                 'error' => 'not found',
+    //                 'code' => 'ERR-000',
+    //             );
+    //             return  response()-> json($resp,200);
+    //         }   
+    //     }
+    //      return response()->json(['message'=> 'El usuario '.$request->id. ' No tiene Grupos asociados','success' => false,
+    //                               'error' => true,
+    //                               'success'=>false,
+    //                               'code' => 'ERR-016',], 400);  
+    // }
+
+    // public function putGroup(Request $request){
+
+    //      $g= Group::find($request->group_id);
+    //      $user= User::find($request->user_id);
+    //      $group_user = $user->Groups;
+    //      $i =0;
+    //      foreach ($group_user as $gp ){
+    //         $groups[$i]= $user->id;  
+    //         $i++;
+    //      }
+    //      if ($g!== null && $user !== null ){
+ 
+    //          if (in_array( $request->user_id , $groups)){
+    //             return response()->json(['error'=> 'El usuario '. $user->name.' ya pertenece al grupo'. $g->name ], 401);
+    //          }
+    //         $res =  $user->Groups()->attach($request->group_id);
+    //         if ( $res !== null) {
+    //             return response()->json(['message'=>$res. ' El usuario '. $user->nombre .' ha sido agregado al Grupo '. $g->name],200);
+    //         }
+    //     } 
+    //      return response()->json(['error'=> 'No se pudo asociar el usuario '.$request->user_id.' al grupo '. $request->group_id, 'grupo'=>$g, 'user'=> $user], 401 );
+    // }
+      // public function newUser(Request $request)
+    // {
+    //      $us = "";
+    //     $us = User::where('email', $request->email)->get();
+    //     if ($us !=""){
+    //         $user = new User();
+    //         $user->name = $request->name;
+    //         $user->email = $request->email;
+    //         $user->password = $request->pass;
+    //         $user->firebase_localId = $request->firebase_localId;
+    //         $user->firebase_token = $request->firebase_token;
+    //         $user->firebase_last_connection = date("Y-m-d H:i:s");
+    //         $res = $user->save();
+    //         if ($res){
+    //             return response()->json(['error'=>false,
+    //                                     'success'=>true,
+    //                                     'code'=>'001-OK',
+    //                                     'message'=>'User created',
+    //                                     'user'=>$user], 200);
+    //         }else{
+    //             return response()->json(['error'=>true,
+    //                                     'success'=>false,
+    //                                     'code'=>'ERR-032',
+    //                                     'message' => 'Error to create User'], 401);
+    //         }
+    //     } return response()->json(['code'=>'ERR-032',
+    //                                 'error'=>true,
+    //                                 'success'=> false,
+    //                                 'message' => 'User duplicated'], 401);
+    // }
+
+// /**
+    //  * Store a newly created resource in storage.
+    //  *
+    //  * @param  \Illuminate\Http\Request  $request
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function store(Request $request)
+    // {
+    //      $us = "";
+    //     $us = User::where('email', $request->email)->get();
+    //     if ($us !=""){
+    //         $user = new User();
+    //         $user->name = $request->name;
+    //         $user->email = $request->email;
+    //         $user->email_verified_at = $request->email_verified_at;
+    //         $user->remember_token = $request->remember_token;
+    //         $user->last_name = $request->last_name;
+    //         $user->birth_date = $request->birth_date;
+    //         $user->document = $request->document;
+    //         $user->gender = $request->gender;
+    //         $user->phone = $request->phone;
+    //         $user->phone_verified_at = $request->phone_verified_at;
+    //         $user->country = $request->country;
+    //         $user->state = $request->state;
+    //         $user->city = $request->city;
+    //         $user->address = $request->address;
+    //         $user->firebase_localId = $request->firebase_localId;
+    //         $user->firebase_token = $request->firebase_token;
+    //         $user->is_admin= $request->is_admin;
+    //         $user->firebase_last_connection = $request->firebase_last_connection;
+    //         $res = $user->save();
+    //         if ($res){
+    //             return response()->json(['error'=> false,
+    //                                     'success'=>true,
+    //                                     'message'=>'User created',
+    //                                     'code'=>'0001-OK',
+    //                                     'data'=>['user'=>$user]], 200);
+                                            
+    //         }else{
+    //             return response()->json(['error'=>true,
+    //                                     'success'=> false,
+    //                                     'code'=> 'ERR-033',
+    //                                     'message' => 'Error to create User'], 401);
+    //         }
+    //     } return response()->json(['error'=>true,
+    //                                 'sucess'=> false,
+    //                                 'code'=>'ERR-034',
+    //                                 'message' => 'User duplicated'], 401);
+    // }
+     // public function updateToken(Request $request, $id)
+    // {
+    //     $us = User::where('email', $request->email)->get();
+    //     if ($us){
+    //         $us->remember_token = $request->remember_token;
+    //         $res= $us->save();
+    //         return response()->json(['error'=>false,
+    //                                 'success'=> true,
+    //                                 'code'=>'001-OK',
+    //                                 'message' => 'User Token updated'], 200);
+    //     } return response()->json(['error' => 'Error to udate User'], 401);
+    // }
 }
 

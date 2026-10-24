@@ -605,11 +605,27 @@ class AccountController extends Controller
             ->where('currency_id', $currency)
             ->sum('credit_promotion');
 
+        $debits = DB::table('accounts')
+                     ->leftJoin('vias', 'vias.id', '=', 'accounts.via_id')
+                     ->where('accounts.user_id', $user_id)
+                     ->where('accounts.currency_id', $currency)
+                     ->where ('vias.type','debit')
+                     ->sum('amount');
+                     
+        $credits = DB::table('accounts')
+                     ->leftJoin('vias', 'vias.id', '=', 'accounts.via_id')
+                     ->where('accounts.user_id', $user_id)
+                     ->where('accounts.currency_id', $currency)
+                     ->where ('vias.type','debit')
+                     ->sum('amount');;
+
         return [
             'currency_id' => $currency,
             'amount' => round($amount ?? 0, 2),
             'credit_promotion' => round($promo ?? 0, 2),
             'total' => round(($amount ?? 0) + ($promo ?? 0), 2),
+            'debits'=>$debits,
+            'credits'=>$credits
         ];
     }
 
@@ -640,9 +656,11 @@ class AccountController extends Controller
     private function getBalance($userId, $currency)
     {
         return DB::table('accounts')
-            ->where('user_id', $userId)
-            ->where('currency_id', $currency)
-            ->sum('amount') ?? 0;
+                // ->leftJoin('vias', 'accounts.via_id', '=', 'vias.id')
+                ->where('user_id', $userId)
+                ->where('currency_id', $currency)
+                // ->groupBy('vias.type','account.currency_id' )
+                ->sum('amount') ?? 0;
     }
 
     private function getPromoBalance($userId, $currency)
@@ -804,4 +822,54 @@ public function myDeposits(Request $request)
         ], 500);
     }
 }
+
+/**
+ * 
+ */
+ public function getTotals(request $Request){
+      
+  $totals = DB::table('accounts')
+            ->leftJoin('vias', 'accounts.via_id', '=', 'vias.id')
+            ->where('accounts.user_id', $Request->user_id)
+            ->where('accounts.currency_id', $Request->currency_id)
+            ->select(
+                DB::raw("SUM(CASE WHEN vias.code = 'deposit' THEN accounts.deposit ELSE 0 END) as deposits"),
+                DB::raw("SUM(CASE WHEN vias.code = 'withdrawal' THEN accounts.withdrawal ELSE 0 END) as withdrawals"),
+                DB::raw("SUM(CASE WHEN vias.code = 'bet' THEN accounts.withdrawal ELSE 0 END) as bets"),
+                DB::raw("SUM(CASE WHEN vias.code = 'award' THEN accounts.amount ELSE 0 END) as awards"),
+                DB::raw("SUM(CASE WHEN vias.code = 'promotion' THEN accounts.credit_promotion ELSE 0 END) as promotions"),
+                DB::raw("SUM(CASE WHEN vias.type = 'debit' THEN accounts.credit_promotion ELSE 0 END) as promotions"),
+                DB::raw("SUM(CASE WHEN vias.type = 'cerdit' THEN accounts.credit_promotion ELSE 0 END) as promotions")
+
+            )
+            ->first();
+
+        if (!$totals){
+            return response()->json(['success'=>false,
+                            'error'=> true,
+                            'code'=> 'ERR-033',
+                            'message'=>'User or Currency not found ',
+                            'data'=> null],401);
+        }    
+
+        return response()->json([ 
+            'success'=>true,
+            'error'=>false,
+            'code'=>'OK-001',
+            'message'=> 'totals found',
+            'data'=>[
+                'deposits' => round($totals->deposits ?? 0, 2),
+                'withdrawals' => round($totals->withdrawals ?? 0, 2),
+                'bets' => round($totals->bets ?? 0, 2),
+                'awards' => round($totals->awards ?? 0, 2),
+                'promotions' => round($totals->promotions ?? 0, 2),
+                'debits'=>round($totals->debits ?? 0, 2),
+                'credits'=>round($totals->credits ?? 0, 2),
+                ]
+        ],200);
+
+ }
+
+
+
 }

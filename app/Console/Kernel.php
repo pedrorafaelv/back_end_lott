@@ -23,6 +23,10 @@ class Kernel extends ConsoleKernel
         ->onFailure(function () {
             \Log::error('BCV: Falló la actualización programada de tasa');
         });
+        Schedule::command('raffle:scheduler-run')
+        ->everyMinute()
+        ->withoutOverlapping()
+        ->runInBackground();
     }
 
     /**

@@ -13,7 +13,7 @@ class RegisterRequest extends FormRequest
      */
     public function authorize()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -24,6 +24,7 @@ class RegisterRequest extends FormRequest
    
   public function rules(): array
     {
+
         return [
             'id_token'                          => ['required', 'string', 'max:4096'],
             'name'                              => ['required', 'string', 'min:3', 'max:50'],

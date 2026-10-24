@@ -62,7 +62,7 @@ class CurrencyController extends Controller
         }
         return response()->json(['success'=>true,
                 'error'=>false,
-                'code'=> 'ERR-040',
-                'message'=> 'currencies Not found',]);
+                'code'=> 'ERR-041',
+                'message'=> 'currencies Not found',], 404);
     }
 }

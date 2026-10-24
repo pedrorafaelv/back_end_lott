@@ -22,6 +22,9 @@ use App\Http\Controllers\Api\FichaController;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str; 
 use Illuminate\Support\Facades\Log; 
+use App\Services\RaffleSchedulerService;
+
+
 
 
 class RaffleController extends BaseApiController
@@ -303,7 +306,7 @@ public function putCard(Request $request)
             ], 409);
         }
 
-        // 3. Validar que el sorteo haya iniciado
+        // 3. Validar que el sorteo no haya iniciado
         if (!$raffle->start_date || now()->lt($raffle->start_date)) {
             return response()->json([
                 'success' => false,
@@ -384,9 +387,33 @@ public function putCard(Request $request)
 
         // ✅ Iniciar transacción para garantizar integridad
         DB::beginTransaction();
-
         try {
-            // 8. Asignar el cartón al usuario
+            // 🔒 Lock de la cuenta — evita doble gasto simultáneo
+            $account = Account::where('user_id', $request->user_id)
+                ->latest('created_at')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$account || $account->amount < $cardAmount) {
+                DB::rollBack();
+                return response()->json(['success' => false, 'code' => 'ERR-010',
+                    'message' => 'Saldo insuficiente'], 422);
+            }
+
+            // 🔒 Lock del cartón — evita que dos usuarios compren el mismo
+            $cardRaffle = CardRaffle::where('raffle_id', $request->raffle_id)
+                ->where('card_id', $request->card_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cardRaffle && $cardRaffle->user_id !== null && $cardRaffle->user_id != $request->user_id) {
+                DB::rollBack();
+                return response()->json(['success' => false,
+                                         'error'=> true,
+                                         'code' => 'ERR-011',
+                                         'message' => 'Cartón ya vendido'], 409);
+            }
+        //     // 8. Asignar el cartón al usuario
             if (!$cardRaffle) {
                 // Crear nuevo registro si no existe
                 $cardRaffle = CardRaffle::create([
@@ -399,14 +426,13 @@ public function putCard(Request $request)
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
-            } else {
-                // Actualizar registro existente
-                $cardRaffle->user_id = $request->user_id;
-                $cardRaffle->status = 'active';
-                $cardRaffle->updated_at = now();
-                $cardRaffle->save();
-            }
-
+                } else {
+                    // Actualizar registro existente
+                    $cardRaffle->user_id = $request->user_id;
+                    $cardRaffle->status = 'active';
+                    $cardRaffle->updated_at = now();
+                    $cardRaffle->save();
+                }
             // 9. Descontar el saldo y registrar transacción
             $newBalance = $account->amount - $cardAmount;
             
@@ -420,13 +446,13 @@ public function putCard(Request $request)
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-
-            // 10. Actualizar el saldo de la cuenta
+                 // 10. Actualizar el saldo de la cuenta
             $account->amount = $newBalance;
             $account->save();
 
-            // ✅ Confirmar transacción
+            // ✅ Confirma r transacción
             DB::commit();
+            RaffleSchedulerService::tryActivate($raffle);
 
             return response()->json([
                 'success' => true,
@@ -444,19 +470,13 @@ public function putCard(Request $request)
                 'message' => 'Card added successfully'
             ], 200);
 
-        } catch (\Exception $e) {
-            // ❌ Si algo falla, revertir transacción
-            DB::rollBack();
-            
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-030',
-                'date' => now()->toDateTimeString(),
-                'message' => 'Transaction failed: ' . $e->getMessage()
-            ], 500);
-        }
 
+                DB::commit();
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                throw $e;
+            }
+      
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
@@ -741,14 +761,16 @@ public function cancelBet(Request $request)
             }
 
             // 3. Validar que el sorteo YA HAYA INICIADO
-            if (!$raffle->start_date || now()->lt($raffle->start_date)) {
+            if (!$raffle->start_date || now()->lt($raffle->start_date )|| !$raffle->min_players_reached_at) {
+                  $minPlayers = (int) SchedulerSetting::get('raffle_scheduler_min_players', 5);
+                  $players = app(RaffleSchedulerService::class)->countDistinctPlayers($raffle->id);
+
                 return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-023',
-                    'message' => 'Raffle has not started yet',
-                    'start_date' => $raffle->start_date
+                    'success' => false, 'error' => true, 'code' => 'ERR-024',
+                    'message' => "El sorteo aún espera jugadores ({$players}/{$minPlayers})",
+                    'data' => ['players' => $players, 'min_players' => $minPlayers],
                 ], 409);
+
             }
 
             // 4. Validar que haya al menos un tipo de premio habilitado
@@ -1487,4 +1509,44 @@ public function getLastUserRaffle(request $request){
         ], 200);
     }
 
+    
+
+
+public function schedulerTrigger(RaffleSchedulerService $svc)
+{
+    $result = $svc->process();
+    return response()->json(array_merge(['code' => 'OK-000'], $result));
+}
+
+
+public function schedulerStatus(RaffleSchedulerService $svc)
+{
+    return response()->json([
+        'success' => true, 'error' => false, 'code' => 'OK-000',
+        'data'    => $svc->getStatus(),
+    ]);
+}
+
+public function schedulerToggle(Request $request, RaffleSchedulerService $svc)
+{
+    $enabled = $svc->toggle();
+    return response()->json([
+        'success' => true, 'code' => 'OK-000',
+        'message' => $enabled ? 'Scheduler ACTIVADO' : 'Scheduler DETENIDO',
+        'data'    => ['enabled' => $enabled, 'status' => $svc->getStatus()],
+    ]);
+}
+
+public function schedulerConfig(Request $request, RaffleSchedulerService $svc)
+{
+    if ($request->has('min_players'))       $svc->setMinPlayers((int) $request->min_players);
+    if ($request->has('auto_play'))         $svc->setAutoPlay((bool) $request->auto_play);
+    if ($request->has('auto_play_rate'))    $svc->setAutoPlayRate((int) $request->auto_play_rate);
+    if ($request->has('template_raffle_id'))$svc->setTemplateRaffleId((int) $request->template_raffle_id);
+
+    return response()->json([
+        'success' => true, 'code' => 'OK-000',
+        'data'    => $svc->getStatus(),
+    ]);
+}
 }

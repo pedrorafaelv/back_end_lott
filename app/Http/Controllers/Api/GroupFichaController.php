@@ -175,6 +175,6 @@ class GroupFichaController extends Controller
         return response()-json([['success'=>false,
                                  'error'=>true,
                                  'code'=>'ERR-038',
-                                 'message'=>'not groupFichas register']],404);
+                                 'message'=>'not groupFichas register']],403);
     }
 }

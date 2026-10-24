@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/requestDeposit', [AccountController::class, 'requestDeposit']);
         Route::post('/cancelDeposit', [AccountController::class, 'cancelDeposit']);
         Route::get('/myDeposits', [AccountController::class, 'myDeposits']);
+        Route::get('/getTotals', [AccountController::class, 'getTotals']);
     });
 
     // ============================================
@@ -111,23 +112,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
 
     Route::prefix('user')->group(function () {
-        Route::resource('/', UserController::class)->except(['create', 'edit']);
         Route::get('getGrupos/{id}', [UserController::class, 'getGrupos']);
         Route::get('getUserLevel/{id}', [UserController::class, 'getUserLevel']);
         Route::get('getUserRoles/{id}', [UserController::class, 'getUserRoles']);
+        Route::get('getUserData', [UserController::class, 'getUserData']);
         Route::get('getUserPermissions/{id}', [UserController::class, 'getUserPermissions']);
         Route::put('putGroup/{group_id}/{user_id}', [UserController::class, 'putGroup']);
         Route::put('putOffGroup/{group_id}/{user_id}', [UserController::class, 'putOffGroup']);
         Route::get('usersList/{user_id}', [UserController::class, 'usersList']);
         Route::get('checkAdmin', [UserController::class, 'checkAdmin']);
-        Route::get('checkAdmin', [UserController::class, 'checkAdmin']);
-        Route::get('/user/level', [UserLevelController::class, 'show']);
         Route::get('/user/level/permissions', [UserLevelController::class, 'permissions']);
-        // Route::get('getUserEmailConfirm/{email}', [UserController::class, 'getUserEmailConfirm']);
-        // Route::get('getUserByFirebase/{firebase_localId}', [UserController::class, 'getUserByFirebase']);
-        // Route::put('updateDataFirebase/{firebase_localId}/{firebase_token}/{firebase_last_connection}', [UserController::class, 'updateDataFirebase']);
-        // Route::post('newUser', [UserController::class, 'newUser']);
-        // Route::post('store', [UserController::class, 'store']);
+        Route::resource('/', UserController::class)->except(['create', 'edit']);
+       
     });
 
     Route::middleware([ 'admin'])->prefix('user')->group(function () {
@@ -163,7 +159,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
         Route::get('getLastUserRaffle', [RaffleController::class, 'getLastUserRaffle']);
         Route::get('searchRaffle', [RaffleController::class, 'searchRaffle']);
-        // Route::post('checkFullWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullWinner']);
+        Route::get ('scheduler/status',  [RaffleController::class, 'schedulerStatus']);
+        Route::post('scheduler/toggle',  [RaffleController::class, 'schedulerToggle']);
+        Route::post('scheduler/trigger', [RaffleController::class, 'schedulerTrigger']);
+         Route::post('scheduler/config',  [RaffleController::class, 'schedulerConfig']);
 
     });
 
@@ -275,8 +274,3 @@ Route::prefix('currencies')->group(function () {
 Route::prefix('terms')->middleware('throttle:60,1')->group(function () {
     Route::get('/version', [TermsController::class, 'publicVersion']);
 });
-
-
-//  Route::get('/test-version-exception', function () {
-//     throw new \App\Exceptions\VersionNotActiveException('Test');
-// });
