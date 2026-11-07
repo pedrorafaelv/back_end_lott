@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Carbon\Carbon;
 
 class Raffle extends Model
 {
@@ -114,5 +115,15 @@ class Raffle extends Model
     public function scopeUpcoming($q)
     {
         return $q->where('start_date', '>', now());
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Raffle $raffle) {
+        if ($raffle->scheduled_date) {
+            $raffle->scheduled_hour = Carbon::parse($raffle->scheduled_date, 'UTC')
+                ->format('H:i:s');
+        }
+        });
     }
 }

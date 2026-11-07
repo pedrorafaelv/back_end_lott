@@ -23,21 +23,14 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str; 
 use Illuminate\Support\Facades\Log; 
 use App\Services\RaffleSchedulerService;
-
+use App\Support\TimezoneResolver;
+use App\Support\RafflePresenter;
+use Carbon\Carbon;
 
 
 
 class RaffleController extends BaseApiController
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
@@ -47,65 +40,115 @@ class RaffleController extends BaseApiController
      */
     public function store(Request $request)
     {
-        $open_raffle= Raffle::where('group_id', $request->group_id)->whereNull('end_date')->get();
+        Log::info('[Raffle::store] Request recibida', $request->all());
 
-        if (count($open_raffle)==0){
+        $request->validate([
+            'scheduled_date' => 'required|date_format:Y-m-d',
+            'scheduled_hour' => 'required|date_format:H:i',
+            'groupficha_id'  => 'required|exists:groupfichas,id',
+            'user_id'        => 'required|exists:users,id',
+            'group_id'       => 'nullable|exists:groups,id',
+            'privacy'        => 'required|in:0,1',
+            'card_amount'    => 'required|numeric|min:0',
+        ]);
 
-            $raffle = new Raffle();
-            if (!$request->name){
-                $raffle->name = 'sorteo ';
-            }else{
-                $raffle->name = $request->name;
-            }
-            if (!$request->desription){
-                $raffle->description =  $raffle->name;
-            }else{
-                $raffle->description = $request->description;
-            }
-            $raffle->user_id = $request->user_id;
-            $raffle->group_id = $request->group_id;
-            $raffle->groupficha_id = $request->groupficha_id;
-            $raffle->total_amount= 0;
-            $raffle->card_amount  = $request->card_amount;
-            $raffle->minimun_play = $request->minimun_play;
-            $raffle->maximun_play = $request->maximun_play;
-            $raffle->maximun_user_play = $request->maximun_user_play;
-            $raffle->retention_percent = $request->retention_percent;
-            $raffle->retention_amount = $request->retention_amount;
-            $raffle->admin_retention_percent = $request->admin_retention_percent;
-            $raffle->admin_retention_amount = $request->admin_retention_amount;
-            $raffle->raffle_type= $request->raffle_type;
-            $raffle->privacy = $request->privacy;
-            $raffle->reward_line = $request->reward_line;
-            $raffle->percent_line = $request->percent_line;
-            $raffle->reward_full = $request->reward_full;
-            $raffle->percent_full = $request->percent_full;
-            $raffle->admin_user = $request->admin_user;
-            $raffle->scheduled_date = $request->scheduled_date;
-            $raffle->scheduled_hour = $request->scheduled_hour;
-            $raffle->time_zone = $request->time_zone; 
-            $res = $raffle->save();
-           // $res = "";
-            if ($res){
-                return response()->json(['succes'=> true,
-                                        'error'=> false,
-                                        'code'=>'001-OK',
-                                        'message'=> 'raffle created', 
-                                        'data'=>['raffle'=>$raffle]], 200);
-            }else{
-                return response()->json(['success'=>false,
-                                            'error'=>true,
-                                            'code'=>'ERR-039',
-                                            'message'=>'raffle was not created',
-                                            'data'=> ['group_id'=>$request->group_id]], 401);
-            }
+        // Regla de negocio: no permitir 2 raffles abiertos en el mismo grupo
+        $open_raffle = Raffle::where('group_id', $request->group_id)
+            ->whereNull('end_date')
+            ->whereNotNull('min_players_reached_at')
+            ->get();
+
+        if (count($open_raffle) > 0) {
+            return response()->json([
+                'success'     => false,
+                'error'       => true,
+                'code'        => 'ERR-035',
+                'message'     => 'Error to create Raffle, Raffle(s) in progress',
+                'open_raffle' => $open_raffle,
+                'group_id'    => $request->group_id,
+            ], 409);
         }
-        return response()->json(['success'=>false,
-                                 'error'=> true,
-                                 'code'=>'ERR-040',       
-                                 'message' => 'Error to create Raffle, Raffle(s) in progress', 'open_raffle'=>$open_raffle,'group_id'=>$request->group_id], 401);
+
+        $tz = TimezoneResolver::fromRequest($request);
+
+        // 1 sola conversión: fecha + hora local → UTC
+        // (localToUtc es el método privado del final)
+        $scheduledUtc = $this->localToUtc(
+            $request->scheduled_date,
+            $request->scheduled_hour,
+            $tz
+        );
+
+        Log::info('STORE_INPUT', [
+            'raw_date'          => $request->scheduled_date,
+            'raw_hour'          => $request->scheduled_hour,
+            'resolved_tz'       => $tz,
+            'local_combined'    => $request->scheduled_date . ' ' . $request->scheduled_hour . ':00',
+            'utc_ready_to_save' => $scheduledUtc->toDateTimeString(),
+            'utc_tz'            => $scheduledUtc->timezoneName,
+            'app_timezone'      => config('app.timezone'),
+        ]);
+
+        $raffle = new Raffle();
+        $raffle->name       = $request->name ?: 'sorteo';
+        $raffle->description = $request->description ?: $raffle->name;
+        $raffle->user_id    = $request->user_id;
+        $raffle->group_id   = $request->group_id;
+        $raffle->groupficha_id = $request->groupficha_id;
+        $raffle->total_amount = 0;
+        $raffle->card_amount  = $request->card_amount;
+        $raffle->currency     = $request->currency;
+        $raffle->minimun_play = $request->minimun_play;
+        $raffle->maximun_play = $request->maximun_play;
+        $raffle->maximun_user_play = $request->maximun_user_play;
+        $raffle->minimun_user_play = $request->minimun_user_play ?? 5;
+        $raffle->retention_percent = $request->retention_percent;
+        $raffle->retention_amount  = $request->retention_amount;
+        $raffle->admin_retention_percent = $request->admin_retention_percent;
+        $raffle->admin_retention_amount  = $request->admin_retention_amount;
+        $raffle->raffle_type = $request->raffle_type;
+        $raffle->privacy     = $request->privacy;
+        $raffle->reward_line = $request->reward_line;
+        $raffle->percent_line = $request->percent_line;
+        $raffle->reward_full  = $request->reward_full;
+        $raffle->allow_bots   = filter_var($request->allow_bots, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        $raffle->percent_full = $request->percent_full;
+        $raffle->admin_user   = $request->admin_user;
+
+        // 👇 Lo importante: en BD se guarda UTC, y la tz del creador
+        $raffle->scheduled_date = $scheduledUtc;   // "2026-11-03 15:55:00" (UTC)
+        $raffle->time_zone      = $tz;             // "America/Caracas"
+        // scheduled_hour lo rellena el hook `saving` del modelo a partir de scheduled_date
+
+        $res = $raffle->save();
+
+        Log::info('STORE_AFTER_CREATE', [
+            'id'                   => $raffle->id,
+            'scheduled_date_fresh' => $raffle->fresh()->scheduled_date?->toDateTimeString(),
+            'scheduled_hour_fresh' => $raffle->fresh()->scheduled_hour,
+            'raw_bd'               => DB::table('raffles')->where('id', $raffle->id)
+                                        ->select('scheduled_date', 'scheduled_hour', 'time_zone', 'groupficha_id')
+                                        ->first(),
+        ]);
+
+        if ($res) {
+            return response()->json([
+                'success' => true,
+                'error'   => false,
+                'code'    => 'OK-001',
+                'message' => 'raffle created',
+                'data'    => ['raffle' => $raffle],
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => false,
+            'error'   => true,
+            'code'    => 'ERR-039',
+            'message' => 'raffle was not created',
+            'data'    => ['group_id' => $request->group_id],
+        ], 401);
     }
-    
     /**
      * Display the specified resource.
      *
@@ -125,8 +168,9 @@ class RaffleController extends BaseApiController
                                  'code'=>'OK-000',
                                  'success'=>true,
                                  'message'=>'Raffle found',
-                                 'data'=>['raffle'=>$raffle]]);
+                                 'data'=>['raffle'=>$raffle], 200]);
     }
+
 
     /**
      * Update the specified resource in storage.
@@ -136,17 +180,6 @@ class RaffleController extends BaseApiController
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, Raffle $raffle)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  \App\Models\Level  $level
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy(Level $level)
     {
         //
     }
@@ -170,7 +203,7 @@ class RaffleController extends BaseApiController
          return response()->json(['error' => 'Error to get Raffle data'],401 );
     }
     
- /** obtiene los datos de un sorteo */
+    /** obtiene los datos de un sorteo */
     public function getRaffleDetails(Request $request){
 
         $raffle =  Raffle::find($request->raffle_id);
@@ -180,13 +213,11 @@ class RaffleController extends BaseApiController
                                       'error'=>false,
                                       'code'=>'OK-000',
                                       'message'=>'Raffle encontrado',
-                                      'data'=>
-                                      [
+                                      'date'=> date("Y-m-d H:i:s"),
+                                      'data'=> [
                                       'raffle'=>$raffle,
                                       'groupficha'=>$groupficha
-                                      ],
-                                      'date'=> date("Y-m-d H:i:s")
-                                      ], 200);
+                                      ]], 200);
          }
 
         return response()->json([
@@ -195,9 +226,10 @@ class RaffleController extends BaseApiController
             'error'=>'Raffle not found',
             'message'=>'Nose encontro el sorteo'],404);
     }
-/**
- * $request->user_id
- */
+
+    /**
+    * $request->user_id
+    */
      /** obtiene los datos de un sorteo */
     public function getActiveRafflesByUser(Request $request){
         $raffles = DB::table('raffles')
@@ -209,18 +241,172 @@ class RaffleController extends BaseApiController
             ->select('raffles.id','raffles.group_id', 'raffles.name', 'raffles.card_amount', 'raffles.total_amount','groupfichas.name as groupfichas')
             ->get();
          if ($raffles !=""){
-             return response()->json(['message'=>'Raffle encontrado','raffles'=>$raffles], 200);
+             return response()->json([ 'success'=> true,
+                                        'error'=>false,
+                                        'message'=>'Raffles found',
+                                        'code' => 'OK_001',
+                                        'data'=>['raffles'=>$raffles]], 200);
          }
-        return response()->json(['error'=>'Raffle no encontrado'],400);
+            return response()->json(['success'=>false,
+                                'error'=>true,
+                                'code'=>'ERR-006',
+                                 'message'=>'Raffle not found',],400);
+    }
+    
+    /**
+     * Obtiene los datos de todos los sorteos disponibles y los clasifica a futuros, que no son el día de hoy
+     * pertenecientes al o los grupos del usuario
+     * y públicos 
+     */
+
+    public function getAvailablesRaffles(Request $request)
+    {
+        $request->validate(['user_id' => 'required|integer|exists:users,id']);
+        $userId = $request->user_id;
+        $now    = now();
+        $in24h  = $now->copy()->addHours(24);
+        $in7d   = $now->copy()->addDays(7);
+        $tz     = TimezoneResolver::fromRequest($request);   // tz del usuario
+
+        $base = fn () => DB::table('raffles')
+            ->join('groupfichas', 'raffles.groupficha_id', '=', 'groupfichas.id')
+            ->whereNull('raffles.end_date')
+            ->select([
+                'raffles.id',
+                'raffles.group_id',
+                'raffles.name',
+                'raffles.privacy',
+                'raffles.card_amount',
+                'raffles.total_amount',
+                'raffles.scheduled_date',
+                'raffles.time_zone',
+                'groupfichas.id as groupfichas_id' ,
+                'groupfichas.name as groupfichas',
+                'groupfichas.image as image',
+            ]);
+
+        $belongsToUserGroup = fn ($q) => $q->whereExists(function ($sub) use ($userId) {
+            $sub->select(DB::raw(1))
+                ->from('group_user')
+                ->whereColumn('group_user.group_id', 'raffles.group_id')
+                ->where('group_user.user_id', $userId);
+        });
+
+        // ---------- Queries (comparan contra scheduled_date en UTC) ----------
+        $publicRaffles = $base()
+            ->where('raffles.privacy', 0)
+            ->where('raffles.scheduled_date', '>',  $now)
+            ->where('raffles.scheduled_date', '<=', $in24h)
+            ->orderBy('raffles.scheduled_date', 'asc')
+            ->get();
+
+        $groupRaffles = $base()
+            ->where('raffles.privacy', 1)
+            ->where('raffles.scheduled_date', '>=', $now)
+            ->where('raffles.scheduled_date', '<=', $in7d)
+            ->where($belongsToUserGroup)
+            ->orderBy('raffles.scheduled_date', 'asc')
+            ->get();
+
+        $userRaffles = $base()
+            ->where('raffles.user_id', $userId)
+            ->where('raffles.scheduled_date', '>=', $now)
+            ->orderBy('raffles.scheduled_date', 'asc')
+            ->get();
+
+        $futureRaffles = $base()
+            ->where('raffles.scheduled_date', '>',  $in24h)
+            ->where('raffles.scheduled_date', '<=', $in7d)
+            ->where(function ($q) use ($belongsToUserGroup) {
+                $belongsToUserGroup($q);
+                $q->orWhere('raffles.privacy', 0);
+            })
+            ->orderBy('raffles.scheduled_date', 'asc')
+            ->get();
+
+        $nextRaffle = $base()
+            ->whereNotNull('raffles.scheduled_date')
+            ->where('raffles.scheduled_date', '>=', $now)
+            ->where(function ($q) use ($userId) {
+                $q->where('raffles.privacy', 0)
+                ->orWhere(function ($q2) use ($userId) {
+                    $q2->where('raffles.privacy', 1)
+                        ->whereExists(function ($sub) use ($userId) {
+                            $sub->select(DB::raw(1))
+                                ->from('group_user')
+                                ->whereColumn('group_user.group_id', 'raffles.group_id')
+                                ->where('group_user.user_id', $userId);
+                        });
+                });
+            })
+            ->orderBy('raffles.scheduled_date', 'asc')
+            ->first();
+
+        // ---------- Conversión UTC → tz del usuario (SOLO en el JSON) ----------
+        $convert = function ($collection) use ($tz) {
+            return $collection->map(function ($r) use ($tz) {
+                if ($r->scheduled_date) {
+                    $utc = Carbon::parse($r->scheduled_date, 'UTC');
+
+                    // Ambos son strings en el JSON. Ninguno se guarda en BD.
+                    $r->scheduled_date_utc = $utc->format('Y-m-d H:i:s');                       // "2026-11-03 15:55:00" (UTC)
+                    $r->scheduled_date     = $utc->copy()->setTimezone($tz)
+                                                ->format('Y-m-d H:i:s');                      // "2026-11-03 11:55:00" (tz user)
+                }
+                return $r;
+            });
+        };
+
+        $publicRaffles = $convert($publicRaffles);
+        $groupRaffles  = $convert($groupRaffles);
+        $userRaffles   = $convert($userRaffles);
+        $futureRaffles = $convert($futureRaffles);
+
+        // nextRaffle es stdClass|null, no Collection → por separado
+        if ($nextRaffle && $nextRaffle->scheduled_date) {
+            $utc = Carbon::parse($nextRaffle->scheduled_date, 'UTC');
+            $nextRaffle->scheduled_date_utc = $utc->format('Y-m-d H:i:s');
+            $nextRaffle->scheduled_date     = $utc->copy()->setTimezone($tz)
+                                                ->format('Y-m-d H:i:s');
+        }
+
+        // ---------- Respuesta ----------
+        $allEmpty = $publicRaffles->isEmpty()
+                && $groupRaffles->isEmpty()
+                && $userRaffles->isEmpty()
+                && $futureRaffles->isEmpty()
+                && is_null($nextRaffle);
+
+        if ($allEmpty) {
+            return response()->json([
+                'success' => false,
+                'error'   => true,
+                'code'    => 'ERR-006',
+                'message' => 'Raffles not found',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'message' => 'Raffles found',
+            'code'    => 'OK_001',
+            'data'    => [
+                'public_raffles'  => $publicRaffles,
+                'group_raffles'   => $groupRaffles,
+                'user_raffles'    => $userRaffles,
+                'futures_raffles' => $futureRaffles,
+                'next_raffle'     => $nextRaffle,
+            ],
+        ], 200);
     }
 
 
-
     /**
- * $request->user_id
- */
-     /** obtiene los datos de un sorteo */
-     public function getDetailActiveRafflesByUser(Request $request){
+    * $request->user_id
+    */
+    /** obtiene los datos de un sorteo */
+    public function getDetailActiveRafflesByUser(Request $request){
         $fichas = DB::table('ficha_groupfichas')
         ->select('groupficha_id', DB::raw('MIN(ficha_id) as first_ficha_id'))
         ->groupBy('groupficha_id');
@@ -250,11 +436,11 @@ class RaffleController extends BaseApiController
          }
         return response()->json(['error'=>'Raffles no encontrados'],400);
     }
- /**
- * $request->group_id
- */
+    /**
+    * $request->group_id
+    */
      /** obtiene los datos de un sorteo */
-     public function getActiveRafflesByGroup(Request $request){
+    public function getActiveRafflesByGroup(Request $request){
         $raffles = DB::table('raffles')
             ->where('raffles.group_id', '=', $request->group_id )
             ->join('groupfichas','raffles.groupficha_id', '=', 'groupfichas.id')
@@ -269,237 +455,237 @@ class RaffleController extends BaseApiController
 
 
 
-/**
- * Hacer una apuesta (agregar cartón a un sorteo)
- * 
- * @param Request $request
- * @return \Illuminate\Http\JsonResponse
- * 
- * $request->raffle_id
- * $request->card_id
- * $request->user_id
- */
-public function putCard(Request $request)
-{
-    try {
-        // 1. Validar que el sorteo existe
-        $raffle = Raffle::find($request->raffle_id);
-        if (!$raffle) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-006',
-                'date' => now()->toDateTimeString(),
-                'message' => 'Raffle not found'
-            ], 404);
-        }
-
-        // 2. Validar que el sorteo esté activo (no cerrado)
-        if ($raffle->end_date && $raffle->end_date != '0000-00-00 00:00:00' && now()->gt($raffle->end_date)) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-009',
-                'date' => now()->toDateTimeString(),
-                'data' => ['raffle_id' => $raffle->id, 'end_date' => $raffle->end_date],
-                'message' => 'Bets cannot be placed because the draw has already ended'
-            ], 409);
-        }
-
-        // 3. Validar que el sorteo no haya iniciado
-        if (!$raffle->start_date || now()->lt($raffle->start_date)) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-023',
-                'date' => now()->toDateTimeString(),
-                'data' => ['raffle_id' => $raffle->id, 'start_date' => $raffle->start_date],
-                'message' => 'Raffle has not started yet'
-            ], 409);
-        }
-
-        // 4. Validar límite de fichas (dinámico)
-        $fichasCount = FichaRaffle::where('raffle_id', $request->raffle_id)->count();
-        $maxFichas = $raffle->maximun_play ?? 2; // Usar valor de la tabla o default 2
-        
-        if ($fichasCount >= $maxFichas) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-00',
-                'date' => now()->toDateTimeString(),
-                'data' => [
-                    'fichas_actuales' => $fichasCount,
-                    'fichas_maximas' => $maxFichas
-                ],
-                'message' => "Cannot place bet. Maximum number of figures ({$maxFichas}) already assigned."
-            ], 409);
-        }
-
-        // 5. Validar cuenta del usuario
-        $account = Account::where('user_id', $request->user_id)->latest('created_at')->first();
-        if (!$account) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-029',
-                'date' => now()->toDateTimeString(),
-                'message' => "User doesn't have an account"
-            ], 404);
-        }
-
-        // 6. Validar saldo suficiente
-        $cardAmount = $raffle->card_amount ?? 0;
-        if ($account->amount < $cardAmount) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-010',
-                'date' => now()->toDateTimeString(),
-                'data' => [
-                    'account_balance' => $account->amount,
-                    'card_amount' => $cardAmount,
-                    'difference' => $cardAmount - $account->amount
-                ],
-                'message' => "Insufficient balance"
-            ], 422);
-        }
-
-        // 7. Verificar disponibilidad del cartón
-        $cardRaffle = CardRaffle::where('raffle_id', $request->raffle_id)
-            ->where('card_id', $request->card_id)
-            ->first();
-
-        // ✅ Si el cartón ya está asignado a otro usuario
-        if ($cardRaffle && $cardRaffle->user_id !== null) {
-            return response()->json([
-                'success' => false,
-                'error' => true,
-                'code' => 'ERR-011',
-                'date' => now()->toDateTimeString(),
-                'message' => "Card is already assigned to another user",
-                'data' => [
-                    'card_id' => $request->card_id,
-                    'assigned_to' => $cardRaffle->user_id
-                ]
-            ], 409);
-        }
-
-        // ✅ Iniciar transacción para garantizar integridad
-        DB::beginTransaction();
+    /**
+     * Hacer una apuesta (agregar cartón a un sorteo)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     * 
+     * $request->raffle_id
+     * $request->card_id
+     * $request->user_id
+     */
+    public function putCard(Request $request)
+    {
         try {
-            // 🔒 Lock de la cuenta — evita doble gasto simultáneo
-            $account = Account::where('user_id', $request->user_id)
-                ->latest('created_at')
-                ->lockForUpdate()
-                ->first();
-
-            if (!$account || $account->amount < $cardAmount) {
-                DB::rollBack();
-                return response()->json(['success' => false, 'code' => 'ERR-010',
-                    'message' => 'Saldo insuficiente'], 422);
+            // 1. Validar que el sorteo existe
+            $raffle = Raffle::find($request->raffle_id);
+            if (!$raffle) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-006',
+                    'date' => now()->toDateTimeString(),
+                    'message' => 'Raffle not found'
+                ], 404);
             }
 
-            // 🔒 Lock del cartón — evita que dos usuarios compren el mismo
+            // 2. Validar que el sorteo esté activo (no cerrado)
+            if ($raffle->end_date && $raffle->end_date != '0000-00-00 00:00:00' && now()->gt($raffle->end_date)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-009',
+                    'date' => now()->toDateTimeString(),
+                    'data' => ['raffle_id' => $raffle->id, 'end_date' => $raffle->end_date],
+                    'message' => 'Bets cannot be placed because the draw has already ended'
+                ], 409);
+            }
+
+            // 3. Validar que el sorteo no haya iniciado
+            if (!$raffle->start_date || now()->lt($raffle->start_date)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-023',
+                    'date' => now()->toDateTimeString(),
+                    'data' => ['raffle_id' => $raffle->id, 'start_date' => $raffle->start_date],
+                    'message' => 'Raffle has not started yet'
+                ], 409);
+            }
+
+            // 4. Validar límite de fichas (dinámico)
+            $fichasCount = FichaRaffle::where('raffle_id', $request->raffle_id)->count();
+            $maxFichas = $raffle->maximun_play ?? 2; // Usar valor de la tabla o default 2
+            
+            if ($fichasCount >= $maxFichas) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-00',
+                    'date' => now()->toDateTimeString(),
+                    'data' => [
+                        'fichas_actuales' => $fichasCount,
+                        'fichas_maximas' => $maxFichas
+                    ],
+                    'message' => "Cannot place bet. Maximum number of figures ({$maxFichas}) already assigned."
+                ], 409);
+            }
+
+            // 5. Validar cuenta del usuario
+            $account = Account::where('user_id', $request->user_id)->latest('created_at')->first();
+            if (!$account) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-029',
+                    'date' => now()->toDateTimeString(),
+                    'message' => "User doesn't have an account"
+                ], 404);
+            }
+
+            // 6. Validar saldo suficiente
+            $cardAmount = $raffle->card_amount ?? 0;
+            if ($account->amount < $cardAmount) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-010',
+                    'date' => now()->toDateTimeString(),
+                    'data' => [
+                        'account_balance' => $account->amount,
+                        'card_amount' => $cardAmount,
+                        'difference' => $cardAmount - $account->amount
+                    ],
+                    'message' => "Insufficient balance"
+                ], 422);
+            }
+
+            // 7. Verificar disponibilidad del cartón
             $cardRaffle = CardRaffle::where('raffle_id', $request->raffle_id)
                 ->where('card_id', $request->card_id)
-                ->lockForUpdate()
                 ->first();
 
-            if ($cardRaffle && $cardRaffle->user_id !== null && $cardRaffle->user_id != $request->user_id) {
-                DB::rollBack();
-                return response()->json(['success' => false,
-                                         'error'=> true,
-                                         'code' => 'ERR-011',
-                                         'message' => 'Cartón ya vendido'], 409);
+            // ✅ Si el cartón ya está asignado a otro usuario
+            if ($cardRaffle && $cardRaffle->user_id !== null) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-011',
+                    'date' => now()->toDateTimeString(),
+                    'message' => "Card is already assigned to another user",
+                    'data' => [
+                        'card_id' => $request->card_id,
+                        'assigned_to' => $cardRaffle->user_id
+                    ]
+                ], 409);
             }
-        //     // 8. Asignar el cartón al usuario
-            if (!$cardRaffle) {
-                // Crear nuevo registro si no existe
-                $cardRaffle = CardRaffle::create([
-                    'raffle_id' => $request->raffle_id,
-                    'card_id' => $request->card_id,
+
+            // ✅ Iniciar transacción para garantizar integridad
+            DB::beginTransaction();
+            try {
+                // 🔒 Lock de la cuenta — evita doble gasto simultáneo
+                $account = Account::where('user_id', $request->user_id)
+                    ->latest('created_at')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$account || $account->amount < $cardAmount) {
+                    DB::rollBack();
+                    return response()->json(['success' => false, 'code' => 'ERR-010',
+                        'message' => 'Saldo insuficiente'], 422);
+                }
+
+                // 🔒 Lock del cartón — evita que dos usuarios compren el mismo
+                $cardRaffle = CardRaffle::where('raffle_id', $request->raffle_id)
+                    ->where('card_id', $request->card_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($cardRaffle && $cardRaffle->user_id !== null && $cardRaffle->user_id != $request->user_id) {
+                    DB::rollBack();
+                    return response()->json(['success' => false,
+                                            'error'=> true,
+                                            'code' => 'ERR-011',
+                                            'message' => 'Cartón ya vendido'], 409);
+                }
+            //     // 8. Asignar el cartón al usuario
+                if (!$cardRaffle) {
+                    // Crear nuevo registro si no existe
+                    $cardRaffle = CardRaffle::create([
+                        'raffle_id' => $request->raffle_id,
+                        'card_id' => $request->card_id,
+                        'user_id' => $request->user_id,
+                        'indice' => CardRaffle::where('raffle_id', $request->raffle_id)->count() + 1,
+                        'status' => 'active',
+                        'active' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    } else {
+                        // Actualizar registro existente
+                        $cardRaffle->user_id = $request->user_id;
+                        $cardRaffle->status = 'active';
+                        $cardRaffle->updated_at = now();
+                        $cardRaffle->save();
+                    }
+                // 9. Descontar el saldo y registrar transacción
+                $newBalance = $account->amount - $cardAmount;
+                
+                $transaction = Account::create([
                     'user_id' => $request->user_id,
-                    'indice' => CardRaffle::where('raffle_id', $request->raffle_id)->count() + 1,
-                    'status' => 'active',
-                    'active' => 1,
+                    'currency_code' => $account->currency_code ?? 'EUR',
+                    'amount' => $newBalance,
+                    'withdrawal' => $cardAmount,  // Si el campo existe
+                    'via' => 3, // Bet
+                    'description' => "Bet for card {$request->card_id} in raffle {$request->raffle_id}",
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
-                } else {
-                    // Actualizar registro existente
-                    $cardRaffle->user_id = $request->user_id;
-                    $cardRaffle->status = 'active';
-                    $cardRaffle->updated_at = now();
-                    $cardRaffle->save();
-                }
-            // 9. Descontar el saldo y registrar transacción
-            $newBalance = $account->amount - $cardAmount;
-            
-            $transaction = Account::create([
-                'user_id' => $request->user_id,
-                'currency_code' => $account->currency_code ?? 'EUR',
-                'amount' => $newBalance,
-                'withdrawal' => $cardAmount,  // Si el campo existe
-                'via' => 3, // Bet
-                'description' => "Bet for card {$request->card_id} in raffle {$request->raffle_id}",
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-                 // 10. Actualizar el saldo de la cuenta
-            $account->amount = $newBalance;
-            $account->save();
+                    // 10. Actualizar el saldo de la cuenta
+                $account->amount = $newBalance;
+                $account->save();
 
-            // ✅ Confirma r transacción
-            DB::commit();
-            RaffleSchedulerService::tryActivate($raffle);
-
-            return response()->json([
-                'success' => true,
-                'error' => false,
-                'code' => 'OK-000',
-                'date' => now()->toDateTimeString(),
-                'data' => [
-                    'card_id' => $request->card_id,
-                    'raffle_id' => $request->raffle_id,
-                    'user_id' => $request->user_id,
-                    'indice' => $cardRaffle->indice,
-                    'account_balance' => $newBalance,
-                    'transaction_id' => $transaction->id
-                ],
-                'message' => 'Card added successfully'
-            ], 200);
-
-
+                // ✅ Confirma r transacción
                 DB::commit();
-            } catch (\Throwable $e) {
-                DB::rollBack();
-                throw $e;
-            }
-      
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => true,
-            'code' => 'ERR-500',
-            'date' => now()->toDateTimeString(),
-            'message' => 'Unexpected error: ' . $e->getMessage()
-        ], 500);
+                RaffleSchedulerService::tryActivate($raffle);
+
+                return response()->json([
+                    'success' => true,
+                    'error' => false,
+                    'code' => 'OK-000',
+                    'date' => now()->toDateTimeString(),
+                    'data' => [
+                        'card_id' => $request->card_id,
+                        'raffle_id' => $request->raffle_id,
+                        'user_id' => $request->user_id,
+                        'indice' => $cardRaffle->indice,
+                        'account_balance' => $newBalance,
+                        'transaction_id' => $transaction->id
+                    ],
+                    'message' => 'Card added successfully'
+                ], 200);
+
+
+                    DB::commit();
+                } catch (\Throwable $e) {
+                    DB::rollBack();
+                    throw $e;
+                }
+        
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-500',
+                'date' => now()->toDateTimeString(),
+                'message' => 'Unexpected error: ' . $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
- * Cancelar una apuesta (eliminar cartón de un sorteo)
- * 
- * @param Request $request
- * @return \Illuminate\Http\JsonResponse
- * 
- * Request espera:
- * - raffle_id: ID del sorteo
- * - card_id: ID del cartón a cancelar
- * - user_id: ID del usuario (o se obtiene del token)
- */
-public function cancelBet(Request $request)
+     * Cancelar una apuesta (eliminar cartón de un sorteo)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     * 
+     * Request espera:
+     * - raffle_id: ID del sorteo
+     * - card_id: ID del cartón a cancelar
+     * - user_id: ID del usuario (o se obtiene del token)
+     */
+    public function cancelBet(Request $request)
     {
         // ✅ Generar request_id único para trazabilidad
         $requestId = (string) Str::uuid();
@@ -942,7 +1128,6 @@ public function cancelBet(Request $request)
                 ->where('fichas.active', 1)
                 ->pluck('fichas.id')
                 ->toArray();
-//  dd($groupFichas);
             if (empty($groupFichas)) {
                 return ['success' => false, 'message' => 'No fichas available in this group', $groupFichas];
             }
@@ -1031,7 +1216,6 @@ public function cancelBet(Request $request)
         ], 200);
     }
 
-    // Fin de código optimizado con deepseek )
 
     /**
      * 
@@ -1261,15 +1445,15 @@ public function cancelBet(Request $request)
      * raffle_id
      * user_id
      */
-     public function getCardsRaffleByUser(Request $request){
+    public function getCardsRaffleByUser(Request $request){
         $userCardsRaffle = DB::table('cards')
-        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-        ->join('raffles', 'raffles.id', '=', 'card_raffle.raffle_id')
-        ->Join('users', 'users.id', '=', 'card_raffle.user_id')
-        ->where('card_raffle.raffle_id', '=', $request->raffle_id )
-        ->where('card_raffle.user_id', '=', $request->user_id )
-        ->select('cards.*')
-        ->get();
+            ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+            ->join('raffles', 'raffles.id', '=', 'card_raffle.raffle_id')
+            ->Join('users', 'users.id', '=', 'card_raffle.user_id')
+            ->where('card_raffle.raffle_id', '=', $request->raffle_id )
+            ->where('card_raffle.user_id', '=', $request->user_id )
+            ->select('cards.*')
+            ->get();
         $fichas = Raffle::find($request->raffle_id)->Fichas;
         foreach ($fichas as $ficha){
              $i = 0; $k =""; 
@@ -1299,7 +1483,7 @@ public function cancelBet(Request $request)
                                 'success' => true,
                                 'error' => 'cards',
                                 'code' => 'ERR-000',], 200);
-     }
+    }
 
     /**
      * 
@@ -1321,128 +1505,128 @@ public function cancelBet(Request $request)
         }
     }
     
-     /**
-     * get the cards in a raffle.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\Response
-     */ 
+    /**
+    * get the cards in a raffle.
+    *
+    * @param Request $request
+    * @return \Illuminate\Http\Response
+    */ 
     public function getAvailableCardsByRaffle(Request $request, $raffle_id)
-{
-    $request->validate([
-        'per_page' => 'nullable|integer|min:1|max:100',
-    ]);
+    {
+        $request->validate([
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
 
-    $perPage = $request->input('per_page', 50);
-    $userId = $request->input('user_id');   
+        $perPage = $request->input('per_page', 50);
+        $userId = $request->input('user_id');   
 
-    $query = DB::table('cards')
-        ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-        ->where('card_raffle.raffle_id', '=', $raffle_id)
-        // ->where('card_raffle.user_id', '=', null)
-        ->select(
-            'cards.*',
-            'card_raffle.id as card_raffle_id',
-        )
-        ->orderBy('card_raffle.indice', 'asc');
+        $query = DB::table('cards')
+            ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
+            ->where('card_raffle.raffle_id', '=', $raffle_id)
+            // ->where('card_raffle.user_id', '=', null)
+            ->select(
+                'cards.*',
+                'card_raffle.id as card_raffle_id',
+            )
+            ->orderBy('card_raffle.indice', 'asc');
 
-        // ✅ Si hay user_id, filtrar por él, si no, user_id = null
-        if ($userId) {
-            $query->where('card_raffle.user_id', '=', $userId);
-        } else {
-            $query->whereNull('card_raffle.user_id');
-        }
+            // ✅ Si hay user_id, filtrar por él, si no, user_id = null
+            if ($userId) {
+                $query->where('card_raffle.user_id', '=', $userId);
+            } else {
+                $query->whereNull('card_raffle.user_id');
+            }
 
-        // ->distinct()
-        // ->paginate($perPage);
+            // ->distinct()
+            // ->paginate($perPage);
 
-        $AvailableCards = $query->paginate($perPage);
+            $AvailableCards = $query->paginate($perPage);
 
-    if ($AvailableCards->isNotEmpty()) {
-        return response()->json([
-            'message' => 'Cards assigned to this raffle',
-            'success' => true,
-            'error'   => false,
-            'code'    => 'OK-000',
-            'date' => date("Y-m-d H:i:s"),
-            'data'    => ['Card'=>$AvailableCards]], 200);
-    }
-    return response()->json([
-        'message' => 'No cards assigned to this raffle',
-        'success' => false,
-        'error' => true,
-        'code' => 'ERR-021',
-        'date' => date("Y-m-d H:i:s"),
-        'data' => ['Card'=>[]]
-    ], 404);
-}
-    
- /**
- * 
- * @param  Request $request
- * @return \Illuminate\Http\Response
- *
- */
-   
-public function getLastUserRaffle(request $request){
-
- $lastRaffle = Raffle::where('user_id', $request->user_id)
-        ->orderBy('created_at', 'desc')
-        ->first();
-
-        if ($lastRaffle) {
+        if ($AvailableCards->isNotEmpty()) {
             return response()->json([
-                'message' => 'Last raffle for this user',
+                'message' => 'Cards assigned to this raffle',
+                'success' => true,
+                'error'   => false,
+                'code'    => 'OK-000',
+                'date' => date("Y-m-d H:i:s"),
+                'data'    => ['Card'=>$AvailableCards]], 200);
+        }
+        return response()->json([
+            'message' => 'No cards assigned to this raffle',
+            'success' => false,
+            'error' => true,
+            'code' => 'ERR-021',
+            'date' => date("Y-m-d H:i:s"),
+            'data' => ['Card'=>[]]
+        ], 404);
+    }
+    
+    /**
+     * 
+     * @param  Request $request
+     * @return \Illuminate\Http\Response
+     *
+     */
+    public function getLastUserRaffle(request $request){
+        $lastRaffle = Raffle::where('user_id', $request->user_id)
+                                    ->orderBy('created_at', 'desc')
+                                    ->first();
+
+            if ($lastRaffle) {
+                return response()->json([
+                    'message' => 'Last raffle for this user',
+                    'success' => true,
+                    'error'   => false,
+                    'code'    => 'OK-001',
+                    'date' => date("Y-m-d H:i:s"),
+                    'data'    => ['raffle'=>$lastRaffle]], 200);
+            }
+            else{
+                
+                return response()->json([
+                    'message' => 'No raffles found for this user',
+                    'success' => false,
+                    'error'   => false,
+                    'code'    => 'ERR-022',
+                    'date' => date("Y-m-d H:i:s"),
+                    'data'    => ['raffle'=>null]], 200);
+            }
+
+    }
+
+    /** busca un sorteo por el nombre */
+    public function searchRaffleByName(Request $request){  
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $raffles = Raffle::where('name', 'like', '%' . $request->name . '%')
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                        
+
+        if ($raffles->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Raffles found',
                 'success' => true,
                 'error'   => false,
                 'code'    => 'OK-001',
                 'date' => date("Y-m-d H:i:s"),
-                'data'    => ['raffle'=>$lastRaffle]], 200);
-        }
-        else{
-            
-            return response()->json([
-                'message' => 'No raffles found for this user',
-                'success' => false,
-                'error'   => false,
-                'code'    => 'ERR-022',
-                'date' => date("Y-m-d H:i:s"),
-                'data'    => ['raffle'=>null]], 200);
-        }
-
-}
-
-
- public function searchRaffleByName(Request $request){
-    
-    $request->validate([
-        'name' => 'required|string|max:255',
-    ]);
-
-    $raffles = Raffle::where('name', 'like', '%' . $request->name . '%')
-                        ->orderBy('created_at', 'desc')
-                        ->first();
-                    
-
-    if ($raffles->isNotEmpty()) {
-        return response()->json([
-            'message' => 'Raffles found',
-            'success' => true,
-            'error'   => false,
-            'code'    => 'OK-001',
-            'date' => date("Y-m-d H:i:s"),
             'data'    => ['raffles'=>$raffles]], 200);
-    } else {
-        return response()->json([
-            'message' => 'No raffles found with that name',
-            'success' => false,
-            'error'   => true,
-            'code'    => 'ERR-023',
-            'date' => date("Y-m-d H:i:s"),
-            'data'    => ['raffles'=>[]]], 404);
+        } else {
+             return response()->json([
+                'message' => 'No raffles found with that name',
+                'success' => false,
+                'error'   => true,
+                'code'    => 'ERR-023',
+                'date' => date("Y-m-d H:i:s"),
+                'data'    => ['raffles'=>[]]], 404);
+            }
     }
- }
-
+    /**
+     * busca un sorteo
+     */
+    
    public function searchRaffle(Request $request)
     {
         // 1. Validación
@@ -1510,43 +1694,124 @@ public function getLastUserRaffle(request $request){
     }
 
     
+    public function schedulerTrigger(RaffleSchedulerService $svc)
+    {
+        $result = $svc->process();
+        return response()->json(array_merge(['code' => 'OK-000'], $result));
+    }
 
 
-public function schedulerTrigger(RaffleSchedulerService $svc)
+    public function schedulerStatus(RaffleSchedulerService $svc)
+    {
+        return response()->json([
+            'success' => true, 'error' => false, 'code' => 'OK-000',
+            'data'    => $svc->getStatus(),
+        ]);
+    }
+
+    public function schedulerToggle(Request $request, RaffleSchedulerService $svc)
+    {
+        $enabled = $svc->toggle();
+        return response()->json([
+            'success' => true, 'code' => 'OK-000',
+            'message' => $enabled ? 'Scheduler ACTIVADO' : 'Scheduler DETENIDO',
+            'data'    => ['enabled' => $enabled, 'status' => $svc->getStatus()],
+        ]);
+    }
+
+    public function schedulerConfig(Request $request, RaffleSchedulerService $svc)
+    {
+        if ($request->has('min_players'))       $svc->setMinPlayers((int) $request->min_players);
+        if ($request->has('auto_play'))         $svc->setAutoPlay((bool) $request->auto_play);
+        if ($request->has('auto_play_rate'))    $svc->setAutoPlayRate((int) $request->auto_play_rate);
+        if ($request->has('template_raffle_id'))$svc->setTemplateRaffleId((int) $request->template_raffle_id);
+
+        return response()->json([
+            'success' => true, 'code' => 'OK-001',
+            'data'    => $svc->getStatus(),
+        ]);
+    }
+
+
+public function getNextRaffles(Request $request)
 {
-    $result = $svc->process();
-    return response()->json(array_merge(['code' => 'OK-000'], $result));
-}
+    $request->validate(['user_id' => 'required|integer|exists:users,id']);
+    $userId = $request->user_id;
+    $now    = now();
+    $in24h  = $now->copy()->addHours(24);
+    $tz     = TimezoneResolver::fromRequest($request);
 
+    $base = fn () => DB::table('raffles')
+        ->join('groupfichas', 'raffles.groupficha_id', '=', 'groupfichas.id')
+        ->whereNull('raffles.end_date')
+        ->select([
+            'raffles.id',
+            'raffles.group_id',
+            'raffles.name',
+            'raffles.privacy',
+            'raffles.card_amount',
+            'raffles.total_amount',
+            'raffles.scheduled_date',
+            'raffles.time_zone',
+            'groupfichas.id as groupficha_id',   
+            'groupfichas.name as groupfichas',
+            'groupfichas.image as image',
+        ]);
 
-public function schedulerStatus(RaffleSchedulerService $svc)
-{
+    $publicRaffles = $base()
+        ->where('raffles.privacy', 0)
+        ->where('raffles.scheduled_date', '>', $now)
+        ->where('raffles.scheduled_date', '<=', $in24h)
+        ->orderBy('raffles.scheduled_date', 'asc')
+        ->get();
+
+    // 👇 Conversión UTC → tz del usuario
+    $publicRaffles = RafflePresenter::convertCollection($publicRaffles, $tz);
+
+    if ($publicRaffles->isNotEmpty()) {
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'code'    => 'OK-001',
+            'message' => 'raffles found',
+            'data'    => ['next_raffles' => $publicRaffles],
+        ], 200);
+    }
+
     return response()->json([
-        'success' => true, 'error' => false, 'code' => 'OK-000',
-        'data'    => $svc->getStatus(),
-    ]);
+        'success' => false,
+        'error'   => true,
+        'code'    => 'ERR-006',
+        'message' => 'raffles not found',
+    ], 200);
 }
 
-public function schedulerToggle(Request $request, RaffleSchedulerService $svc)
-{
-    $enabled = $svc->toggle();
-    return response()->json([
-        'success' => true, 'code' => 'OK-000',
-        'message' => $enabled ? 'Scheduler ACTIVADO' : 'Scheduler DETENIDO',
-        'data'    => ['enabled' => $enabled, 'status' => $svc->getStatus()],
-    ]);
-}
+    /**
+ * Convierte una fecha/hora local (tz del usuario) a UTC.
+ *
+ * @param  string      $date  "Y-m-d"            ej: "2026-11-03"
+ * @param  string      $hour  "H:i"              ej: "11:55"
+ * @param  string|null $tz    IANA timezone      ej: "America/Caracas"
+ * @return Carbon             Carbon en UTC
+ *
+ * @throws \InvalidArgumentException si los inputs no son válidos
+ */
+    private function localToUtc(string $date, string $hour, ?string $tz = null): Carbon
+    {
+        $tz = $tz ?: config('app.fallback_timezone', 'America/Caracas');
 
-public function schedulerConfig(Request $request, RaffleSchedulerService $svc)
-{
-    if ($request->has('min_players'))       $svc->setMinPlayers((int) $request->min_players);
-    if ($request->has('auto_play'))         $svc->setAutoPlay((bool) $request->auto_play);
-    if ($request->has('auto_play_rate'))    $svc->setAutoPlayRate((int) $request->auto_play_rate);
-    if ($request->has('template_raffle_id'))$svc->setTemplateRaffleId((int) $request->template_raffle_id);
+        $local = $date . ' ' . $hour . ':00';
 
-    return response()->json([
-        'success' => true, 'code' => 'OK-000',
-        'data'    => $svc->getStatus(),
-    ]);
-}
+        try {
+            $parsed = Carbon::createFromFormat('Y-m-d H:i:s', $local, $tz);
+        } catch (\Throwable $e) {
+            throw new \InvalidArgumentException("Fecha/hora inválida: {$local} (tz {$tz})");
+        }
+
+        if (!$parsed || $parsed->format('Y-m-d H:i:s') !== $local) {
+            throw new \InvalidArgumentException("Fecha/hora inválida: {$local}");
+        }
+
+        return $parsed->utc();
+    }
 }

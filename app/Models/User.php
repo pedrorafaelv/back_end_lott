@@ -43,7 +43,9 @@ class User extends Authenticatable
     'email_verified_at' => 'datetime',
     'phone_verified_at' => 'datetime',
     'registered_at'     => 'datetime',
+    'last_seen_at'      => 'datetime',
     'is_admin'          => 'boolean',
+    'is_bot'            => 'boolean',
     'birth_date'        => 'date',
     'document'          => 'encrypted',   
 ];

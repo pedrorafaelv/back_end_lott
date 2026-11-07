@@ -11,7 +11,6 @@ use App\Http\Controllers\Api\GroupController;
 use App\Http\Requests\Api\RegisterRequest;
 use Illuminate\Support\Facades\DB;
 
-
 class UserController extends Controller
 {
     /**
@@ -31,105 +30,43 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
-
-
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-   
-
-    /**
      * Display the specified resource.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-
     public function getUserData(Request $request)
-{
-    $user = User::with('Roles')->find($request->id);
+    {
+        $user = User::with('Roles')->find($request->id);
 
-    if (!$user) {
+        if (!$user) {
+            return response()->json([
+                'success' => false, 'error' => true, 'code' => 'ERR-041',
+                'message' => 'User not found', 'data' => null,
+            ], 404);
+        }
+
+        $level = $user->levels()->wherePivot('is_current', true)->first()
+            ?? Level::where('slug', 'novato')->first();
+
+        $roles = $user->Roles->pluck('name')->values(); // array limpio
+
         return response()->json([
-            'success' => false, 'error' => true, 'code' => 'ERR-041',
-            'message' => 'User not found', 'data' => null,
-        ], 404);
+            'success' => true, 'error' => false, 'code' => 'OK-001',
+            'data' => [
+                'user'  => $user,
+                'level' => $level,
+                'roles' => $roles,
+            ],
+        ], 200);
     }
 
-    $level = $user->levels()->wherePivot('is_current', true)->first()
-          ?? Level::where('slug', 'novato')->first();
-
-    $roles = $user->Roles->pluck('name')->values(); // array limpio
-
-    return response()->json([
-        'success' => true, 'error' => false, 'code' => 'OK-001',
-        'data' => [
-            'user'  => $user,
-            'level' => $level,
-            'roles' => $roles,
-        ],
-    ], 200);
-}
-
-
-    public function show($id)
-    {
-       
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        //
-    }
-    
-  
+   
     public function putGroup(Request $request, $group_id, $user_id)
     {
         $user  = $this->targetUser($request, $user_id);
         $group = Group::findOrFail($group_id);
-
         $user->Groups()->syncWithoutDetaching([$group->id]);
-
         return response()->json(['success' => true,
                                  'code'=> 'OK-001',
                                  'error'=>false,
@@ -138,6 +75,7 @@ class UserController extends Controller
                                         'group'=>$group->name]], 200);
     }
 
+    /** Elimina a un usuario de un grupo  */
     public function putOffGroup(Request $request, $group_id, $user_id)
     {
         $user  = $this->targetUser($request, $user_id);
@@ -152,118 +90,115 @@ class UserController extends Controller
                                  'message' => "El usuario {$user->name} fue removido del grupo {$group->name}"], 200);
     }
 
-
-
    /**
- * Obtiene el nivel actual del usuario con toda su información relevante.
- *
- * @param  \Illuminate\Http\Request  $request
- * @return \Illuminate\Http\JsonResponse
- */
-public function getUserLevel(Request $request)
-{
-    // 1. Validar entrada
-    // $request->validate([
-    //     'id' => 'required|integer|exists:users,id',
-    // ]);
+    * Obtiene el nivel actual del usuario con toda su información relevante.
+    *
+    * @param  \Illuminate\Http\Request  $request
+    * @return \Illuminate\Http\JsonResponse
+    */
+    public function getUserLevel(Request $request)
+    {
+        // 1. Validar entrada
+        // $request->validate([
+        //     'id' => 'required|integer|exists:users,id',
+        // ]);
 
-    // 2. Buscar usuario
-    // $user = User::find($request->id);
-    $user = $this->targetUser($request, $id);
+        // 2. Buscar usuario
+        // $user = User::find($request->id);
+        $user = $this->targetUser($request, $request->id);
 
-    if (!$user) {
-        return response()->json([
-            'success' => false,
-            'error'   => true,
-            'code'    => 'ERR-032',
-            'message' => "The User {$request->id} was not found",
-        ], 404);
-    }
-
-    // 3. Obtener el nivel activo (con los datos del pivote)
-    $level = $user->levels()
-        ->wherePivot('is_current', true)
-        ->first();
-
-    if (!$level) {
-        // Fallback al nivel Novato
-        $level = Level::where('slug', 'novato')->first();
-
-        if (!$level) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
                 'error'   => true,
-                'code'    => 'ERR-039',
-                'message' => "The User {$request->id} has no associated levels",
+                'code'    => 'ERR-032',
+                'message' => "The User {$request->id} was not found",
             ], 404);
         }
-    }
 
-    // 4. Extraer datos del pivote (si existen)
-    $pivot = $level->pivot;
+        // 3. Obtener el nivel activo (con los datos del pivote)
+        $level = $user->levels()
+            ->wherePivot('is_current', true)
+            ->first();
 
-    // 5. Armar respuesta
-    $levelData = [
-        'id'                     => $level->id,
-        'slug'                   => $level->slug,
-        'name'                   => $level->name,
-        'description'            => $level->description,
-        'icon'                   => $level->icon,
-        'color'                  => $level->color,
-        'order'                  => $level->order,
+        if (!$level) {
+            // Fallback al nivel Novato
+            $level = Level::where('slug', 'novato')->first();
 
-        // Beneficios / límites del nivel
-        'max_raffles_active'     => $level->max_raffles_active,
-        'max_amount'             => (float) $level->max_amount,
-        'max_retention_percent'  => $level->max_retention_percent,
-        'can_create_private'     => (bool) $level->can_create_private,
-        'can_use_auto_type'      => (bool) $level->can_use_auto_type,
-        'can_use_custom_fichas'  => (bool) $level->can_use_custom_fichas,
+            if (!$level) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => true,
+                    'code'    => 'ERR-039',
+                    'message' => "The User {$request->id} has no associated levels",
+                ], 404);
+            }
+        }
 
-        // Requisitos para alcanzarlo
-        'requirements' => [
-            'min_games_played'   => $level->min_games_played,
-            'min_days_registered'=> $level->min_days_registered,
-            'min_wins'           => $level->min_wins,
-        ],
+        // 4. Extraer datos del pivote (si existen)
+        $pivot = $level->pivot;
 
-        // Estadísticas del usuario en este nivel (pivote)
-        'user_stats' => [
-            'games_played'   => $pivot?->games_played ?? 0,
-            'wins'           => $pivot?->wins ?? 0,
-            'active_raffles' => $pivot?->active_raffles ?? 0,
-            'total_raffles'  => $pivot?->total_raffles ?? 0,
-            'total_prizes'   => (float) ($pivot?->total_prizes ?? 0),
-            'is_current'     => (bool) ($pivot?->is_current ?? true),
-            'assigned_at'    => optional($pivot?->assigned_at)->toIso8601String(),
-            'notes'          => $pivot?->notes,
-        ],
-    ];
+        // 5. Armar respuesta
+        $levelData = [
+            'id'                     => $level->id,
+            'slug'                   => $level->slug,
+            'name'                   => $level->name,
+            'description'            => $level->description,
+            'icon'                   => $level->icon,
+            'color'                  => $level->color,
+            'order'                  => $level->order,
 
-    // 6. Respuesta final
-    return response()->json([
-        'success' => true,
-        'error'   => false,
-        'code'    => '001-OK',
-        'message' => 'Level found',
-        'data'    => [
-            'date'  => now()->toIso8601String(),
-            'user'  => [
-                'id'   => $user->id,
-                'name' => $user->name,
+            // Beneficios / límites del nivel
+            'max_raffles_active'     => $level->max_raffles_active,
+            'max_amount'             => (float) $level->max_amount,
+            'max_retention_percent'  => $level->max_retention_percent,
+            'can_create_private'     => (bool) $level->can_create_private,
+            'can_use_auto_type'      => (bool) $level->can_use_auto_type,
+            'can_use_custom_fichas'  => (bool) $level->can_use_custom_fichas,
+
+            // Requisitos para alcanzarlo
+            'requirements' => [
+                'min_games_played'   => $level->min_games_played,
+                'min_days_registered'=> $level->min_days_registered,
+                'min_wins'           => $level->min_wins,
             ],
-            'level' => $levelData,
-        ],
-    ], 200);
-}
+
+            // Estadísticas del usuario en este nivel (pivote)
+            'user_stats' => [
+                'games_played'   => $pivot?->games_played ?? 0,
+                'wins'           => $pivot?->wins ?? 0,
+                'active_raffles' => $pivot?->active_raffles ?? 0,
+                'total_raffles'  => $pivot?->total_raffles ?? 0,
+                'total_prizes'   => (float) ($pivot?->total_prizes ?? 0),
+                'is_current'     => (bool) ($pivot?->is_current ?? true),
+                'assigned_at'    => optional($pivot?->assigned_at)->toIso8601String(),
+                'notes'          => $pivot?->notes,
+            ],
+        ];
+
+        // 6. Respuesta final
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'code'    => '001-OK',
+            'message' => 'Level found',
+            'data'    => [
+                'date'  => now()->toIso8601String(),
+                'user'  => [
+                    'id'   => $user->id,
+                    'name' => $user->name,
+                ],
+                'level' => $levelData,
+            ],
+        ], 200);
+    }
     /**
     * $request->user_id
     */
     public function getUserRoles(Request $request){
 
         $user = User::find($request->id);
-        $i = 0;
-        
+        $i = 0;    
         if (count($user->Roles)>0){
             foreach ($user->Roles as $role ) {
                 $roles[$i] = $roles->name;
@@ -319,32 +254,31 @@ public function getUserLevel(Request $request)
     } 
 
      /**
- * 🔍 ENDPOINT: Verificar si un usuario es admin
- * GET /api/user/checkAdmin?user_id=X
- */
-public function checkAdmin(Request $request)
-{
-    $user = User::find($request->user_id);
+     * 🔍 ENDPOINT: Verificar si un usuario es admin
+     * GET /api/user/checkAdmin?user_id=X
+     */
+    public function checkAdmin(Request $request)
+    {
+        $user = User::find($request->user_id);
 
-    if (!$user) {
-        return response()->json(['error' => 'User not found'], 404);
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'is_admin' => (bool) $user->is_admin,
+        ], 200);
     }
 
-    return response()->json([
-        'success' => true,
-        'is_admin' => (bool) $user->is_admin,
-    ], 200);
-}
-
-/**
-   * Lista de usuarios paginada
-   * @param user     localId del usuario autenticado
-   * @param page     número de página (1-based)
-   * @param perPage  registros por página
-   * @param search   filtro opcional por nombre/email
-   */
-public function usersList(Request $request, $localId)
-    {
+    /**
+    * Lista de usuarios paginada
+    * @param user     localId del usuario autenticado
+    * @param page     número de página (1-based)
+    * @param perPage  registros por página
+    * @param search   filtro opcional por nombre/email
+    */
+    public function usersList(Request $request, $localId){
         // Validación de parámetros
         $perPage = (int) $request->input('per_page', 10);
         $perPage = max(1, min($perPage, 100)); // límite entre 1 y 100
@@ -363,7 +297,7 @@ public function usersList(Request $request, $localId)
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -391,91 +325,174 @@ public function usersList(Request $request, $localId)
     }
 
     /**
- * 🔍 ENDPOINT: Buscar usuarios (Admin)
- * GET /api/admin/users/search?q=...
- */
-public function searchUsers(Request $request)
-{
-    try {
-        $query = $request->q;
+    *  ENDPOINT: Buscar usuarios (Admin)
+    * GET /api/admin/users/search?q=...
+    */
+    public function searchUsers(Request $request)
+    {
+        try {
+            $query = $request->q;
 
-        if (!$query || strlen($query) < 2) {
+            if (!$query || strlen($query) < 2) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'Ingresa al menos 2 caracteres'
+                ], 200);
+            }
+
+            $users = User::where(function ($q) use ($query) {
+                    $q->where('id', $query)
+                    ->orWhere('name', 'like', '%' . $query . '%')
+                    ->orWhere('email', 'like', '%' . $query . '%');
+                })
+                ->select('id', 'name', 'email', 'local_id', 'firebase_localId')
+                ->limit(20)
+                ->get();
+
+            // Agregar balance a cada usuario
+            $usersWithBalance = $users->map(function ($user) {
+                $balances = DB::table('accounts')
+                    ->where('user_id', $user->id)
+                    ->select('currency_code', DB::raw('SUM(amount) as total_amount'), DB::raw('SUM(credit_promotion) as total_promo'))
+                    ->groupBy('currency_code')
+                    ->get()
+                    ->keyBy('currency_code');
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'local_id' => $user->local_id,
+                    'balances' => $balances,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => [],
-                'message' => 'Ingresa al menos 2 caracteres'
+                'data' => $usersWithBalance,
             ], 200);
+
+        } catch (\Exception $e) {
+            log::error('no se encontro el usuario ');
+            return response()->json([
+                'success' => false,
+                'error' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function targetUser(Request $request, $id): User
+    {
+        $auth = $request->user();
+
+        if ((int) $id !== (int) $auth->id && ! $auth->is_admin) {
+            abort(403, 'No autorizado');
         }
 
-        $users = User::where(function ($q) use ($query) {
-                $q->where('id', $query)
-                  ->orWhere('name', 'like', '%' . $query . '%')
-                  ->orWhere('email', 'like', '%' . $query . '%');
-            })
-            ->select('id', 'name', 'email', 'local_id', 'firebase_localId')
-            ->limit(20)
-            ->get();
+        return User::findOrFail($id);
+    }
 
-        // Agregar balance a cada usuario
-        $usersWithBalance = $users->map(function ($user) {
-            $balances = DB::table('accounts')
-                ->where('user_id', $user->id)
-                ->select('currency_code', DB::raw('SUM(amount) as total_amount'), DB::raw('SUM(credit_promotion) as total_promo'))
-                ->groupBy('currency_code')
-                ->get()
-                ->keyBy('currency_code');
+    public function getGrupos(Request $request, $id)
+    {
+        $user   = $this->targetUser($request, $id);
+        $groups = $user->Groups;
 
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'local_id' => $user->local_id,
-                'balances' => $balances,
-            ];
-        });
+        if ($groups->isEmpty()) {
+            return response()->json([
+                'success' => false, 'error' => true, 'code' => 'ERR-016',
+                'message' => "El usuario {$user->id} no tiene grupos asociados",
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true, 'error' => false, 'code' => '001-OK',
+            'date' => now()->toIso8601String(), 'User' => $user->id, 'Group' => $groups,
+        ]);
+    }
+
+    /**
+     * GET /api/user/online?window=2&limit=50
+     * Devuelve cuántos usuarios están conectados + la lista
+     */
+    public function onlineCount(Request $request)
+    {
+        $windowMinutes = max(1, (int) $request->input('window', 2));  // ventana en minutos
+        $limit         = min(100, (int) $request->input('limit', 30)); // máx 100 en la lista
+        $since         = now()->subMinutes($windowMinutes);
+
+        $base = User::where('is_bot', false)
+                    ->where('last_seen_at', '>=', $since);
+
+        $count = (clone $base)->count();
+
+        $users = (clone $base)
+            ->orderByDesc('last_seen_at')
+            ->limit($limit)
+            ->get(['id', 'name', 'last_seen_at']);
 
         return response()->json([
             'success' => true,
-            'data' => $usersWithBalance,
+            'error'   => false,
+            'code'    => 'OK-000',
+            'date'    => now()->toDateTimeString(),
+            'data'    => [
+                'count'          => $count,
+                'window_minutes' => $windowMinutes,
+                'users'          => $users,
+            ],
         ], 200);
-
-    } catch (\Exception $e) {
-        log::error('no se encontro el usuario ');
-        return response()->json([
-            'success' => false,
-            'error' => 'Error: ' . $e->getMessage()
-        ], 500);
     }
-}
-
- private function targetUser(Request $request, $id): User
-{
-    $auth = $request->user();
-
-    if ((int) $id !== (int) $auth->id && ! $auth->is_admin) {
-        abort(403, 'No autorizado');
+  /**
+     * Show the form for creating a new resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function create()
+    {
+        //
     }
 
-    return User::findOrFail($id);
-}
-
- public function getGrupos(Request $request, $id)
-{
-    $user   = $this->targetUser($request, $id);
-    $groups = $user->Groups;
-
-    if ($groups->isEmpty()) {
-        return response()->json([
-            'success' => false, 'error' => true, 'code' => 'ERR-016',
-            'message' => "El usuario {$user->id} no tiene grupos asociados",
-        ], 404);
+    public function show($id)
+    {
+       
     }
 
-    return response()->json([
-        'success' => true, 'error' => false, 'code' => '001-OK',
-        'date' => now()->toIso8601String(), 'User' => $user->id, 'Group' => $groups,
-    ]);
-}
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function edit($id)
+    {
+        //
+    }
+
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, $id)
+    {
+        //
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+        //
+    }
+    
+    /** agrega un usuario a un grupo  */
 
 // public function checkAdmin(Request $request)
 // {

@@ -17,6 +17,7 @@ class GroupFicha extends Model
         'name',
         'description',
         'status',
+        'image',
         'created_at',
     ];
 

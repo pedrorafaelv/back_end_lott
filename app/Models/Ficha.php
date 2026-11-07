@@ -8,6 +8,7 @@ use App\Models\Card;
 use App\Models\GroupFicha;
 use App\Models\Raffle;
 
+
 class Ficha extends Model
 {
     use HasFactory;
@@ -19,7 +20,7 @@ class Ficha extends Model
 
     public function GroupFichas(){
 
-        return $this->belongsToMany(GroupFicha::class, 'ficha_groupficha', 'ficha_id', 'groupficha_id');
+        return $this->belongsToMany(GroupFicha::class, 'ficha_groupfichas', 'ficha_id', 'groupficha_id');
     }
 
     public function Raffles(){

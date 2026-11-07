@@ -71,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::resource('/', CardController::class)->except(['edit']);
         Route::post('fillcard', [CardController::class, 'fillCard']);
         Route::get('getCards', [CardController::class, 'getCards']);
+        Route::post('generate', [CardController::class, 'generate']);
         Route::get('getAvailableCards/{raffle_id}', [CardController::class, 'getAvailableCards']);
         Route::get('getAvailableCardsByGroup/{group_id}', [CardController::class, 'getAvailableCardsByGroup']);
     });
@@ -123,7 +124,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('checkAdmin', [UserController::class, 'checkAdmin']);
         Route::get('/user/level/permissions', [UserLevelController::class, 'permissions']);
         Route::resource('/', UserController::class)->except(['create', 'edit']);
-       
+        Route::get('online', [UserController::class, 'onlineCount']); 
+
     });
 
     Route::middleware([ 'admin'])->prefix('user')->group(function () {
@@ -143,26 +145,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('newFicha/{raffle_id}', [RaffleController::class, 'newFicha']);
         Route::get('getFichas/{raffle_id}', [RaffleController::class, 'getFichas']);
         Route::get('getRaffleDetails/{raffle_id}', [RaffleController::class, 'getRaffleDetails']);
+        Route::get('getNextRaffles', [RaffleController::class, 'getNextRaffles']);
         Route::get('getActiveRafflesByUser/{user_id}', [RaffleController::class, 'getActiveRafflesByUser']);
         Route::get('getDetailActiveRafflesByUser/{user_id}', [RaffleController::class, 'getDetailActiveRafflesByUser']);
         Route::get('getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']);
-        Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
-        Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
-        Route::post('/raffle', [RaffleController::class, 'store']);
         Route::get('getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
         Route::get('getAvailableCardsByRaffle/{raffle_id}', [RaffleController::class, 'getAvailableCardsByRaffle']);
-        Route::post('newRaffle', [RaffleController::class, 'store']); // Cambiado para usar un solo endpoint
-        Route::post('setStart/{raffle_id}/{start_date}/{start_hour}', [RaffleController::class, 'setStart']);
-        Route::post('endRaffle/{raffle_id}/{end_date}/{end_hour}', [RaffleController::class, 'endRaffle']);
         Route::get('autoRaffle/{raffle_id}', [RaffleController::class, 'autoRaffle']);
         Route::get('checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
         Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
+        Route::get('getAvailablesRaffles', [RaffleController::class, 'getAvailablesRaffles']);
         Route::get('getLastUserRaffle', [RaffleController::class, 'getLastUserRaffle']);
         Route::get('searchRaffle', [RaffleController::class, 'searchRaffle']);
-        Route::get ('scheduler/status',  [RaffleController::class, 'schedulerStatus']);
+        Route::get('scheduler/status',  [RaffleController::class, 'schedulerStatus']);
+        Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
+        Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
+        Route::post('/raffle', [RaffleController::class, 'store']);
+        Route::post('newRaffle', [RaffleController::class, 'store']); 
+        Route::post('setStart/{raffle_id}/{start_date}/{start_hour}', [RaffleController::class, 'setStart']);
+        Route::post('endRaffle/{raffle_id}/{end_date}/{end_hour}', [RaffleController::class, 'endRaffle']);
         Route::post('scheduler/toggle',  [RaffleController::class, 'schedulerToggle']);
         Route::post('scheduler/trigger', [RaffleController::class, 'schedulerTrigger']);
-         Route::post('scheduler/config',  [RaffleController::class, 'schedulerConfig']);
+        Route::post('scheduler/config',  [RaffleController::class, 'schedulerConfig']);
 
     });
 
@@ -200,8 +204,6 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
-    
-    
 Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         
     Route::prefix('withdrawals')->middleware('admin')->group(function () {
@@ -247,9 +249,9 @@ Route::get('/admin/users/search', [UserController::class, 'searchUsers'])
 // ─────────────────────────────────────────────────────────────
 // Endpoints PÚBLICOS (sin autenticación) — para el registro
 // ─────────────────────────────────────────────────────────────
-    // ============================================
-    // RUTAS DE TASA DE CAMBIO (Exchange Rate)
-    // ============================================   
+// ============================================
+// RUTAS DE TASA DE CAMBIO (Exchange Rate)
+// ============================================   
 
 Route::prefix('exchange-rate')->group(function () {
     // Consultar la tasa desde la BD (rápido, para frontend)

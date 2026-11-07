@@ -12,22 +12,35 @@ use App\Models\User;
 class Card extends Model
 {
     use HasFactory;
+    
+    protected $fillable = [
+        'name', 'groupFicha_id', 'active', 'start_date', 'end_date',
+    ];
 
-
-    public function Fichas(){
-
-        return $this->belongsToMany(Ficha::class);    
+    public function Fichas()
+    {
+        return $this->belongsToMany(Ficha::class, 'card_ficha')
+                    ->withPivot('posicion')
+                    ->withTimestamps();
     }
 
-    public function GroupFichas(){
-
-        return $this->belongsTo(GroupFicha::class);
-
+    public function GroupFicha()
+    {
+        return $this->belongsTo(GroupFicha::class, 'groupFicha_id');
     }
 
-    public function Users(){
+    public function Users()
+    {
+        return $this->belongsToMany(User::class, 'card_user')
+                    ->withTimestamps();
+    }
 
-        return $this->belongsToMany(Card::class);
+    public function Raffles()
+    {
+        return $this->belongsToMany(Raffle::class, 'card_raffle')
+                    ->withPivot('user_id', 'indice', 'status', 'cancelled_at',
+                                'cancelled_reason', 'active', 'start_date', 'end_date')
+                    ->withTimestamps();
     }
      
 }

@@ -33,10 +33,10 @@ Código HTTP	Código Interno (Ejemplo)	Significado (Español)	Descripción / Cu�
 404 ERR-032 User not Found          The User was not found
 404 ERR-033
 401 ERR-034 haven´t permissionsof raffle   The User haven´t Permissions over the Raffle  
-ERR-035
+409 ERR-035 Error to create Raffle    Error to create Raffle, Raffle(s) in progress'
 ERR-036
 404 ERR-037 groupFicha Not found      The GroupFicha not found
 403 ERR-038 not groupFichas register  Not groupFichas register
 401 ERR-039 raffle was not created    The Raffle could not be created
-401 ERR-040 Error to create Raffle    Error to create Raffle, Raffle(s) in progress'
+401 ERR-040 currencies Not found       
 404 ERR-041 currencies Not found      Currencies Not found

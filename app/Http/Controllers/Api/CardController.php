@@ -8,6 +8,8 @@ use App\Models\Raffle;
 use DB;
 use Illuminate\Http\Request;
 use App\Models\Ficha;
+use App\Services\CardGenerationService;
+use Illuminate\Validation\ValidationException;
 
 class CardController extends Controller
 {
@@ -304,5 +306,39 @@ class CardController extends Controller
               return response()->json($card, 201);
            }
          return response()->json(['message' => 'Error to get cards'], 500);    
+    }
+
+
+
+    public function generate(Request $request, CardGenerationService $service)
+    {
+        $data = $request->validate([
+            'groupFicha_id' => ['required', 'integer', 'exists:groupfichas,id'],
+            'count'         => ['required', 'integer', 'min:1', 'max:2000'],
+        ]);
+
+        try {
+            $result = $service->generateForGroupFicha(
+                (int) $data['groupFicha_id'],
+                (int) $data['count']
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error'   => true,
+                'code'    => 'ERR-422',
+                'message' => 'Datos inválidos para generar cartones.',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'code'    => 'OK-000',
+            'date'    => now()->toDateTimeString(),
+            'message' => "{$result['created']} cartones generados.",
+            'data'    => $result,
+        ], 201);
     }
 }

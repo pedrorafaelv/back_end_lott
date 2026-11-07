@@ -33,7 +33,7 @@ class BotDrawJob implements ShouldQueue
             $raffle = Raffle::find($this->raffleId);
             if (!$raffle || $raffle->end_date || !$raffle->start_date) return;
 
-            if (!(bool) SchedulerSetting::get('raffle_scheduler_auto_play', false)) return;
+            if (!(bool) $raffle->allow_bots) return;
 
             // 1) Elegir un bot (aleatorio)
             $bot = User::where('is_bot', true)->inRandomOrder()->first();

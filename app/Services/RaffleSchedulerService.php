@@ -27,31 +27,29 @@ class RaffleSchedulerService
     // ═══════════════════════════════════════════
 
     public function getStatus(): array
-    {
-        $raffle = $this->currentRaffle();
-        $players = $raffle ? $this->countDistinctPlayers($raffle->id) : 0;
-        $minPlayers = (int) SchedulerSetting::get(self::KEY_MIN_PLAYERS, 5);
+{
+    $raffle     = $this->currentRaffle();
+    $players    = $raffle ? $this->countDistinctPlayers($raffle->id) : 0;
+    $minPlayers = $raffle ? (int) ($raffle->minimun_user_play ?? 5) : 5;
 
-        return [
-            'enabled'         => (bool) SchedulerSetting::get(self::KEY_ACTIVE, false),
-            'auto_play'       => (bool) SchedulerSetting::get(self::KEY_AUTO_PLAY, false),
-            'auto_play_rate'  => (int) SchedulerSetting::get(self::KEY_AUTO_PLAY_RATE, 3),
+    return [
+        'enabled'        => (bool) SchedulerSetting::get(self::KEY_ACTIVE, false),
+        'current_raffle' => $raffle ? [
+            'id'              => $raffle->id,
+            'name'            => $raffle->name,
+            'state'           => $this->raffleState($raffle),
+            'players_count'   => $players,
             'min_players'     => $minPlayers,
-            'current_raffle'  => $raffle ? [
-                'id'                    => $raffle->id,
-                'name'                  => $raffle->name,
-                'state'                 => $this->raffleState($raffle),
-                'players_count'         => $players,
-                'players_needed'        => max(0, $minPlayers - $players),
-                'start_date'            => $raffle->start_date,
-                'min_players_reached_at'=> $raffle->min_players_reached_at,
-                'end_date'              => $raffle->end_date,
-                'winner'                => $raffle->winner,
-                'full_winner'           => $raffle->full_winner,
-            ] : null,
-            'bots_count'      => User::where('is_bot', true)->count(),
-        ];
-    }
+            'players_needed'  => max(0, $minPlayers - $players),
+            'allow_bots'      => (bool) $raffle->allow_bots,
+            'start_date'      => $raffle->start_date,
+            'end_date'        => $raffle->end_date,
+            'winner'          => $raffle->winner,
+            'full_winner'     => $raffle->full_winner,
+        ] : null,
+        'bots_count'     => User::where('is_bot', true)->count(),
+    ];
+  }
 
     public function toggle(): bool
     {
@@ -139,14 +137,13 @@ class RaffleSchedulerService
                         'players' => $this->countDistinctPlayers($raffle->id)];
             }
 
-            // Caso 3: raffle ACTIVE → si auto_play está on, dispatch bot job
+           // Caso 3: raffle ACTIVE → si el propio raffle tiene allow_bots=1, dispatch bot job
             if ($raffle->start_date && !$raffle->end_date) {
-                if ((bool) SchedulerSetting::get(self::KEY_AUTO_PLAY, false)) {
-                    \App\Jobs\BotDrawJob::dispatch($raffle->id)
-                        ->delay(now()->addSeconds(2));
+                if ((bool) $raffle->allow_bots) {
+                    \App\Jobs\BotDrawJob::dispatch($raffle->id)->delay(now()->addSeconds(2));
                     return ['success' => true, 'action' => 'bot_dispatched', 'raffle_id' => $raffle->id];
                 }
-                return ['success' => true, 'action' => 'active_no_autoplay', 'raffle_id' => $raffle->id];
+                return ['success' => true, 'action' => 'active_no_bots', 'raffle_id' => $raffle->id];
             }
 
             return ['success' => true, 'action' => 'noop'];
@@ -162,20 +159,25 @@ class RaffleSchedulerService
      * para que el raffle se active en cuanto llegue el jugador #5,
      * sin esperar al cron del minuto.
      */
-    public function tryActivate(Raffle $raffle): bool
-    {
-        $minPlayers = (int) SchedulerSetting::get(self::KEY_MIN_PLAYERS, 5);
-        $players = $this->countDistinctPlayers($raffle->id);
+   public function tryActivate(Raffle $raffle): bool
+{
+    // ✅ Ahora el mínimo viene DEL PROPIO RAFFLE
+    $minPlayers = (int) ($raffle->minimun_user_play ?? 5);
+    $players    = $this->countDistinctPlayers($raffle->id);
 
-        if ($players >= $minPlayers && !$raffle->start_date) {
-            $raffle->start_date = now();
-            $raffle->min_players_reached_at = now();
-            $raffle->save();
-            Log::info('[RaffleScheduler] Activated', ['raffle_id' => $raffle->id, 'players' => $players]);
-            return true;
-        }
-        return false;
+    if ($players >= $minPlayers && !$raffle->start_date) {
+        $raffle->start_date            = now();
+        $raffle->min_players_reached_at = now();
+        $raffle->save();
+        Log::info('[RaffleScheduler] Activated', [
+            'raffle_id' => $raffle->id,
+            'players'   => $players,
+            'min'       => $minPlayers,
+        ]);
+        return true;
     }
+    return false;
+}
 
     public function countDistinctPlayers(int $raffleId): int
     {
