@@ -14,7 +14,7 @@ class Card extends Model
     use HasFactory;
     
     protected $fillable = [
-        'name', 'groupFicha_id', 'active', 'start_date', 'end_date',
+        'name', 'groupficha_id', 'active', 'start_date', 'end_date',
     ];
 
     public function Fichas()
@@ -26,7 +26,7 @@ class Card extends Model
 
     public function GroupFicha()
     {
-        return $this->belongsTo(GroupFicha::class, 'groupFicha_id');
+        return $this->belongsTo(GroupFicha::class, 'groupficha_id');
     }
 
     public function Users()

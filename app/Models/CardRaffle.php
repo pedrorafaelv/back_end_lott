@@ -19,7 +19,7 @@ class CardRaffle extends Model
         'status',
         'cancelled_at',
         'cancelled_reason',
-        'active',
+        // 'active',
         'start_date',
         'end_date',
         'created_at',

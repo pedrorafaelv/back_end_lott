@@ -443,6 +443,14 @@ class UserController extends Controller
             ],
         ], 200);
     }
+
+    // Ejemplo en un controlador de API o directamente en el modelo User
+    public function getReferralLinkAttribute()
+    {
+        // Genera un link hacia tu frontend Angular con el ID como parámetro
+        // Ejemplo: https://tuloteria.com/registro?ref=123
+        return env('APP_FRONTEND_URL') . '/registro?ref=' . $this->id;
+    }
   /**
      * Show the form for creating a new resource.
      *

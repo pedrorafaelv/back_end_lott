@@ -10,7 +10,10 @@ use App\Models\Via;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use  App\Http\Resources\DepositRequestResource;
+use App\Http\Resources\DepositRequestResource;
+use App\Http\Controllers\Api\AccountController;
+use Illuminate\Support\Facades\Log;
+
 
 class DepositRequestController extends Controller
 {
@@ -19,7 +22,8 @@ class DepositRequestController extends Controller
      * GET /api/admin/deposits
      */
     public function index(Request $request)
-{
+   {
+    log::info('Admin DepositRequestController@index called', ['request' => $request->all()]);
     try {
         $perPage = $request->per_page ?? 20;
         $page = $request->page ?? 1;
@@ -167,7 +171,36 @@ class DepositRequestController extends Controller
                     'current_status' => $deposit->status
                 ], 401);
             }
+            $balance = DB::table('accounts')
+                    ->where('user_id', $deposit->user_id)
+                    ->where('currency_id', $deposit->currency_id)
+                    ->whereIn('reference_type', ['credit', 'debit'])
+                    ->selectRaw("
+                        COALESCE(SUM(CASE WHEN reference_type = 'credit' THEN deposit    ELSE 0 END), 0)
+                    - COALESCE(SUM(CASE WHEN reference_type = 'debit'  THEN withdrawal ELSE 0 END), 0)
+                        AS balance
+                    ")
+                    ->value('balance');
 
+            $nuevoSaldo = $balance + $deposit->amount;
+   
+            Account::create([
+                'user_id' => $deposit->user_id,
+                'currency_id' => $deposit->currency_id,
+                'amount' => $deposit->amount,
+                'credit_promotion' => 0,
+                'credit' => $deposit->amount,
+                'deposit' => $deposit->amount,
+                'withdrawal' => 0,
+                'via_id' => $deposit->via_id,
+                'description' => 'Depósito aprobado #' . $deposit->id,
+                'reference_type' => 'credit',
+                'reference_id' => $deposit->id,
+                'balance_after' => $nuevoSaldo, 
+            ]);
+            /**
+             * falta incluir un registro en la tabla account 
+             */
             $deposit->status = 'approved';
             $deposit->approved_by = $request->admin_id;
             $deposit->approved_at = now();

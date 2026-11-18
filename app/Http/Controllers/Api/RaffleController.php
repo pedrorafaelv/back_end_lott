@@ -23,6 +23,7 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Str; 
 use Illuminate\Support\Facades\Log; 
 use App\Services\RaffleSchedulerService;
+use App\MOdels\SchedulerSetting;
 use App\Support\TimezoneResolver;
 use App\Support\RafflePresenter;
 use Carbon\Carbon;
@@ -184,23 +185,83 @@ class RaffleController extends BaseApiController
         //
     }
     
-    public function getFichas(Request $request){
-        $i = 0;
-        $fichas = Raffle::find($request->raffle_id)->Fichas;
-        $Raffle  = Raffle::find($request->raffle_id);
-        $f=array();
-        $i = 0;
-        if (count($fichas) > 0){
-            foreach($fichas as $ficha){
-                $ficha->image .= '@';
-                $f[$i]= $ficha->name;
-                $i++;
+    public function getFichas(Request $request)
+    {
+        try {
+            // 1. Validar parámetro
+            $validator = validator($request->all(), [
+                'raffle_id' => 'required|integer|exists:raffles,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-001',
+                    'message' => 'Invalid raffle_id',
+                    'errors' => $validator->errors(),
+                ], 422);
             }
-        } 
-        if (!empty($fichas)){
-            return response()->json(['message'=>'success','Raffle'=> $Raffle, 'ArrFichas'=> $f, 'Fichas'=> $fichas], 200); 
+
+            // 2. Obtener el sorteo UNA sola vez con eager loading de fichas
+            $raffle = Raffle::with(['Fichas' => function ($query) {
+                $query->orderBy('fichas.id', 'asc');
+            }])->find($request->raffle_id);
+
+            if (!$raffle) {
+                return response()->json([
+                    'success' => false,
+                    'error' => true,
+                    'code' => 'ERR-006',
+                    'message' => 'Raffle not found',
+                ], 404);
+            }
+
+            $fichas = $raffle->Fichas;
+
+            // 3. Sin fichas
+            if ($fichas->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'error' => false,
+                    'code' => 'OK-002',
+                    'message' => 'No fichas found for this raffle',
+                    'data' => [
+                        'Raffle' => $raffle,
+                        'ArrFichas' => [],
+                        'Fichas' => [],
+                    ],
+                ], 200);
+            }
+
+            // 4. Preparar array de nombres (con @ si es necesario)
+            $arrFichas = $fichas->map(function ($ficha) {
+                return $ficha->name . '@';  // ⭐ Mantengo el @ como en tu versión original
+            })->toArray();
+
+            // 5. Respuesta exitosa
+            return response()->json([
+                'success' => true,
+                'error' => false,
+                'code' => 'OK-001',
+                'message' => 'Fichas found',
+                'data' => [
+                    'Raffle' => $raffle,
+                    'ArrFichas' => $arrFichas,
+                    'Fichas' => $fichas,
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error en getFichas: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'error' => true,
+                'code' => 'ERR-500',
+                'message' => 'Error processing request: ' . $e->getMessage(),
+            ], 500);
         }
-         return response()->json(['error' => 'Error to get Raffle data'],401 );
     }
     
     /** obtiene los datos de un sorteo */
@@ -453,8 +514,6 @@ class RaffleController extends BaseApiController
         return response()->json(['message'=>'Raffle no encontrado'],400);
     }
 
-
-
     /**
      * Hacer una apuesta (agregar cartón a un sorteo)
      * 
@@ -465,7 +524,7 @@ class RaffleController extends BaseApiController
      * $request->card_id
      * $request->user_id
      */
-    public function putCard(Request $request)
+    public function putCard(Request $request, RaffleSchedulerService $scheduler)
     {
         try {
             // 1. Validar que el sorteo existe
@@ -475,7 +534,7 @@ class RaffleController extends BaseApiController
                     'success' => false,
                     'error' => true,
                     'code' => 'ERR-006',
-                    'date' => now()->toDateTimeString(),
+                    'date' => [now()->toDateTimeString(), $request->raffle_id],
                     'message' => 'Raffle not found'
                 ], 404);
             }
@@ -493,16 +552,16 @@ class RaffleController extends BaseApiController
             }
 
             // 3. Validar que el sorteo no haya iniciado
-            if (!$raffle->start_date || now()->lt($raffle->start_date)) {
-                return response()->json([
-                    'success' => false,
-                    'error' => true,
-                    'code' => 'ERR-023',
-                    'date' => now()->toDateTimeString(),
-                    'data' => ['raffle_id' => $raffle->id, 'start_date' => $raffle->start_date],
-                    'message' => 'Raffle has not started yet'
-                ], 409);
-            }
+            // if (!$raffle->start_date || now()->lt($raffle->start_date)) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'error' => true,
+            //         'code' => 'ERR-023',
+            //         'date' => now()->toDateTimeString(),
+            //         'data' => ['raffle_id' => $raffle->id, 'start_date' => $raffle->start_date],
+            //         'message' => 'Raffle has not started yet'
+            //     ], 409);
+            // }
 
             // 4. Validar límite de fichas (dinámico)
             $fichasCount = FichaRaffle::where('raffle_id', $request->raffle_id)->count();
@@ -543,9 +602,9 @@ class RaffleController extends BaseApiController
                     'code' => 'ERR-010',
                     'date' => now()->toDateTimeString(),
                     'data' => [
-                        'account_balance' => $account->amount,
+                        'account_balance' => $account->balance_after,
                         'card_amount' => $cardAmount,
-                        'difference' => $cardAmount - $account->amount
+                        'difference' => $cardAmount - $account->balance_after
                     ],
                     'message' => "Insufficient balance"
                 ], 422);
@@ -580,7 +639,7 @@ class RaffleController extends BaseApiController
                     ->lockForUpdate()
                     ->first();
 
-                if (!$account || $account->amount < $cardAmount) {
+                if (!$account || $account->balance_after < $cardAmount) {
                     DB::rollBack();
                     return response()->json(['success' => false, 'code' => 'ERR-010',
                         'message' => 'Saldo insuficiente'], 422);
@@ -620,12 +679,13 @@ class RaffleController extends BaseApiController
                         $cardRaffle->save();
                     }
                 // 9. Descontar el saldo y registrar transacción
-                $newBalance = $account->amount - $cardAmount;
+                $newBalance = $account->balance_after - $cardAmount;
                 
                 $transaction = Account::create([
                     'user_id' => $request->user_id,
-                    'currency_code' => $account->currency_code ?? 'EUR',
-                    'amount' => $newBalance,
+                    'currency_id' => $raffle->currency_id ?? env('CURRENCY_DEFAULT', 1),
+                    'amount' => $cardAmount,
+                    'balance_after' => $newBalance,
                     'withdrawal' => $cardAmount,  // Si el campo existe
                     'via' => 3, // Bet
                     'description' => "Bet for card {$request->card_id} in raffle {$request->raffle_id}",
@@ -633,12 +693,17 @@ class RaffleController extends BaseApiController
                     'updated_at' => now()
                 ]);
                     // 10. Actualizar el saldo de la cuenta
-                $account->amount = $newBalance;
+                $account->balance_after = $newBalance;
                 $account->save();
+
+                     /**actualizar el monto jugado en el sorteo (raffle) */
+                $raffle->total_amount += $cardAmount;
+                $raffle->save();
 
                 // ✅ Confirma r transacción
                 DB::commit();
-                RaffleSchedulerService::tryActivate($raffle);
+                 $scheduler->tryActivate($raffle);
+                // RaffleSchedulerService::tryActivate($raffle);
 
                 return response()->json([
                     'success' => true,
@@ -655,7 +720,6 @@ class RaffleController extends BaseApiController
                     ],
                     'message' => 'Card added successfully'
                 ], 200);
-
 
                     DB::commit();
                 } catch (\Throwable $e) {
@@ -823,11 +887,28 @@ class RaffleController extends BaseApiController
 
                 // 9. Reembolsar el dinero
                 $cardAmount = $raffle->card_amount ?? 0;
-                $account->amount += $cardAmount;
-                $account->save();
+                // $account->amount += $cardAmount;
+                // $account->save();
 
                 // 10. Registrar transacción de reembolso (opcional)
-                // Transaction::create([...]);
+                $Refound =Account::create([
+                    'user_id' => $request->user_id,
+                    'currency_id' => $raffle->currency_id ?? env('CURRENCY_DEFAULT', 1),
+                    'amount' => $cardAmount,
+                    'credit' => $cardAmount,
+                    'deposit' => $cardAmount,
+                    'balance_after' => $account->amount + $cardAmount,
+                    'via' => 3, // Bet cancellation
+                    'description' => "Refund for cancelled bet on card {$request->card_id} in raffle {$request->raffle_id}",
+                    'reference_type' => 'Cancel bet',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+                $Refound->save();   
+
+                // 10.- descontar el monto jugado en el sorteo (raffle)
+                $raffle ->total_amount -= $cardAmount;
+                $raffle->save();               
 
                 DB::commit();
 
@@ -1225,15 +1306,15 @@ class RaffleController extends BaseApiController
      * raffle_id
      * ficha_id
      */
-    public function checkLineWinner($raffle_id, $ficha_id){
+    public function checkLineWinner(Request $request){
         // dd('checkLineWinner =>  raffle_id = '. $raffle_id.' ficha_id =  '. $ficha_id);
         $lines = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
         ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
         ->join('check_cards', 'cards.id', '=', 'check_cards.card_id')
-        ->where('card_ficha.ficha_id', '=', $ficha_id)
-        ->where('check_cards.raffle_id', '=', $raffle_id )
-        ->where('card_raffle.raffle_id', '=', $raffle_id )
+        ->where('card_ficha.ficha_id', '=', $request->ficha_id)
+        ->where('check_cards.raffle_id', '=', $request->raffle_id )
+        ->where('card_raffle.raffle_id', '=', $request->raffle_id )
         ->select('cards.id as card_id', 'check_cards.nro_faltas as faltas' , 'check_cards.faltantes as faltantes', 'check_cards.id as checkCard_id')
         ->orderBy('faltas')
         ->get();
@@ -1348,16 +1429,16 @@ class RaffleController extends BaseApiController
      * raffle_id
      * ficha_id
      */
-    public function checkFullW($raffle_id, $ficha_id){
+    public function checkFullW(Request $request){
     //  $raffle_id = $request->raffle_id;
     //  $ficha_id = $request->ficha_id;
         $cards = DB::table('cards')
         ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
         ->join('card_ficha', 'cards.id', '=', 'card_ficha.card_id')
         ->join('check_fulls', 'cards.id', '=', 'check_fulls.card_id')
-        ->where('card_ficha.ficha_id', '=', $ficha_id)
-        ->where('card_raffle.raffle_id', '=', $raffle_id )
-        ->where('check_fulls.raffle_id', '=', $raffle_id )
+        ->where('card_ficha.ficha_id', '=', $request->ficha_id)
+        ->where('card_raffle.raffle_id', '=', $request->raffle_id )
+        ->where('check_fulls.raffle_id', '=', $request->raffle_id )
         ->select('cards.id','cards.combTotal' ,'check_fulls.nro_faltas as faltas' , 'check_fulls.faltantes as faltantes', 'check_fulls.id as checkFull_id')
         ->orderBy('faltas')
         ->get();
@@ -1391,7 +1472,7 @@ class RaffleController extends BaseApiController
                  ->whereNull('check_fulls.id');
         })
             ->where('card_ficha.ficha_id', '=', $ficha_id)
-            ->where('card_raffle.raffle_id', '=', $raffle_id )
+            ->where('card_raffle.raffle_id', '=', $rquest->raffle_id )
             ->whereNull('check_fulls.id' )
             ->select('cards.id', 'cards.combTotal as faltantes','cards.combTotal as combinacion')
             ->get();
@@ -1511,53 +1592,67 @@ class RaffleController extends BaseApiController
     * @param Request $request
     * @return \Illuminate\Http\Response
     */ 
-    public function getAvailableCardsByRaffle(Request $request, $raffle_id)
+    public function getAvailableCardsByRaffle(Request $request)
     {
         $request->validate([
-            'per_page' => 'nullable|integer|min:1|max:100',
+            'raffle_id' => 'required|integer|exists:raffles,id',
+            'per_page'  => 'nullable|integer|min:1|max:100',
         ]);
 
         $perPage = $request->input('per_page', 50);
-        $userId = $request->input('user_id');   
+
+        $groupFichaId = DB::table('raffles')
+            ->where('id', $request->raffle_id)
+            ->value('groupficha_id');
+
+        if (is_null($groupFichaId)) {
+            return response()->json([
+                'message' => 'Raffle not found',
+                'success' => false,
+                'error'   => true,
+                'code'    => 'ERR-006',
+                'data'    => ['Card' => []],
+            ], 404);
+        }
 
         $query = DB::table('cards')
-            ->join('card_raffle', 'cards.id', '=', 'card_raffle.card_id')
-            ->where('card_raffle.raffle_id', '=', $raffle_id)
-            // ->where('card_raffle.user_id', '=', null)
-            ->select(
-                'cards.*',
-                'card_raffle.id as card_raffle_id',
-            )
-            ->orderBy('card_raffle.indice', 'asc');
+            ->where('cards.groupficha_id', $groupFichaId)
+            ->whereNotExists(function ($sub) use ($request) {
+                $sub->select(DB::raw(1))
+                    ->from('card_raffle')
+                    ->whereColumn('card_raffle.card_id', 'cards.id')
+                    ->where('card_raffle.raffle_id', '=', $request->raffle_id);
+            })
+            ->select('cards.*')
+            ->orderBy('cards.id', 'asc');
 
-            // ✅ Si hay user_id, filtrar por él, si no, user_id = null
-            if ($userId) {
-                $query->where('card_raffle.user_id', '=', $userId);
-            } else {
-                $query->whereNull('card_raffle.user_id');
-            }
+        Log::info('getAvailableCardsByRaffle', [
+            'raffle_id'      => $request->raffle_id,
+            'groupficha_id'  => $groupFichaId,
+            'sql'            => $query->toSql(),
+            'bindings'       => $query->getBindings(),
+        ]);
 
-            // ->distinct()
-            // ->paginate($perPage);
+        $availableCards = $query->paginate($perPage);
 
-            $AvailableCards = $query->paginate($perPage);
-
-        if ($AvailableCards->isNotEmpty()) {
+        if ($availableCards->isNotEmpty()) {
             return response()->json([
-                'message' => 'Cards assigned to this raffle',
+                'message' => 'Available cards found',
                 'success' => true,
                 'error'   => false,
                 'code'    => 'OK-000',
-                'date' => date("Y-m-d H:i:s"),
-                'data'    => ['Card'=>$AvailableCards]], 200);
+                'date'    => now()->format('Y-m-d H:i:s'),
+                'data'    => ['Card' => $availableCards],
+            ], 200);
         }
+
         return response()->json([
-            'message' => 'No cards assigned to this raffle',
+            'message' => 'No available cards for this raffle',
             'success' => false,
-            'error' => true,
-            'code' => 'ERR-021',
-            'date' => date("Y-m-d H:i:s"),
-            'data' => ['Card'=>[]]
+            'error'   => true,
+            'code'    => 'ERR-021',
+            'date'    => now()->format('Y-m-d H:i:s'),
+            'data'    => ['Card' => []],
         ], 404);
     }
     
@@ -1813,5 +1908,41 @@ public function getNextRaffles(Request $request)
         }
 
         return $parsed->utc();
+    }
+
+    public function getMyCards(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'raffle_id' => 'required|integer|exists:raffles,id',
+        ]);
+ 
+         $cards = DB::table('card_raffle')
+            ->join('cards', 'cards.id', '=', 'card_raffle.card_id')
+            ->join('raffles', 'raffles.id', '=', 'card_raffle.raffle_id')
+            ->where('card_raffle.user_id', '=', $request->user_id)
+            ->where('card_raffle.raffle_id', '=', $request->raffle_id)
+            ->select('cards.*', 'card_raffle.id as card_raffle_id', 'raffles.id as raffle_id', 'raffles.name as raffle_name')
+            ->get();
+            
+        if ($cards->isNotEmpty()) {
+            return response()->json([
+                'success' => true,
+                'error'   => false,
+                'code'    => 'OK-001',
+                'message' => 'Cards found for this user',
+                'date'    => now()->format('Y-m-d H:i:s'),
+                'data'    => ['cards' => $cards],
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => true,
+            'error'   => false,
+            'code'    => 'ERR-024',
+            'date'    => now()->format('Y-m-d H:i:s'),
+            'message' => 'No cards found for this user',
+            'data'    => ['cards' => []],
+        ], );
     }
 }

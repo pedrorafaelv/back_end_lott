@@ -97,7 +97,7 @@ class CreateCardsTable extends Migration
             $table->text('desc_comb14', 512)->nullable();
             $table->longText('desc_combTotal')->nullable();
             $table->string('active', 2)->nullable();
-            $table->unsignedBigInteger('groupFicha_id')->nullable();
+            $table->unsignedBigInteger('groupficha_id')->nullable();
             $table->timestamp('start_date')->nullable();
             $table->timestamp('end_date')->nullable();
             $table->timestamps();

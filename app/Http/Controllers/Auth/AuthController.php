@@ -115,7 +115,7 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
-      console.log('firebaseWeb:', environment.firebaseWeb);
+    //   console.log('firebaseWeb:', environment.firebaseWeb);
 
         try {
 
@@ -156,6 +156,13 @@ class AuthController extends Controller
             }
             $versions[] = $active;
         }
+        $referrerId = null;
+        if (isset($data['ref'])) {
+            $referrer = User::find($data['ref']);
+            if ($referrer) {
+                $referrerId = $referrer->id;
+            }
+        }
 
         try {
             // Log::info('entra en transaction ');
@@ -178,6 +185,8 @@ class AuthController extends Controller
                     $user->email             = $email;
                     $user->firebase_localId  = $uid;
                     $user->email_verified_at = ! empty($claims['email_verified']) ? now() : null;
+                    $user->is_bot            = false;
+                    $user->referrer_id       = $referrerId;
                     // $user->registered_at     = now();
                     // $user->registration_ip   = $request->attributes->get('client_ip');
                     $user->save();

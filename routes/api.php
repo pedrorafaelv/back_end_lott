@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\ViaController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\TermsController;
 use App\Http\Middleware\CaptureRequestContext;
+use App\Http\Controllers\Api\ExchangeRateController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -141,29 +143,30 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('raffle')->group(function () {
         Route::resource('/', RaffleController::class)->except(['create', 'edit']);
-        Route::get('getNewRecord/{raffle_id}', [RaffleController::class, 'getNewRecord']);
+        Route::get('getNewRecord', [RaffleController::class, 'getNewRecord']);
         Route::get('newFicha/{raffle_id}', [RaffleController::class, 'newFicha']);
-        Route::get('getFichas/{raffle_id}', [RaffleController::class, 'getFichas']);
-        Route::get('getRaffleDetails/{raffle_id}', [RaffleController::class, 'getRaffleDetails']);
+        Route::get('getFichas', [RaffleController::class, 'getFichas']);
+        Route::get('getRaffleDetails', [RaffleController::class, 'getRaffleDetails']);
         Route::get('getNextRaffles', [RaffleController::class, 'getNextRaffles']);
         Route::get('getActiveRafflesByUser/{user_id}', [RaffleController::class, 'getActiveRafflesByUser']);
         Route::get('getDetailActiveRafflesByUser/{user_id}', [RaffleController::class, 'getDetailActiveRafflesByUser']);
         Route::get('getActiveRafflesByGroup/{group_id}', [RaffleController::class, 'getActiveRafflesByGroup']);
         Route::get('getCardsRaffleByUser/{raffle_id}/{user_id}', [RaffleController::class, 'getCardsRaffleByUser']);
-        Route::get('getAvailableCardsByRaffle/{raffle_id}', [RaffleController::class, 'getAvailableCardsByRaffle']);
+        Route::get('getAvailableCardsByRaffle', [RaffleController::class, 'getAvailableCardsByRaffle']);
         Route::get('autoRaffle/{raffle_id}', [RaffleController::class, 'autoRaffle']);
-        Route::get('checkLineWinner/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkLineWinner']);
-        Route::get('checkFullW/{raffle_id}/{ficha_id}', [RaffleController::class, 'checkFullW']);
+        Route::get('checkLineWinner', [RaffleController::class, 'checkLineWinner']);
+        Route::get('checkFullW', [RaffleController::class, 'checkFullW']);
         Route::get('getAvailablesRaffles', [RaffleController::class, 'getAvailablesRaffles']);
         Route::get('getLastUserRaffle', [RaffleController::class, 'getLastUserRaffle']);
         Route::get('searchRaffle', [RaffleController::class, 'searchRaffle']);
         Route::get('scheduler/status',  [RaffleController::class, 'schedulerStatus']);
-        Route::post('putCard/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'putCard']);
-        Route::post('cancelBet/{raffle_id}/{card_id}/{user_id}', [RaffleController::class, 'cancelBet']);
+        Route::get('getMyCards',  [RaffleController::class, 'getMyCards']);
+        Route::post('putCard/', [RaffleController::class, 'putCard']);
+        Route::post('cancelBet/', [RaffleController::class, 'cancelBet']);
         Route::post('/raffle', [RaffleController::class, 'store']);
         Route::post('newRaffle', [RaffleController::class, 'store']); 
-        Route::post('setStart/{raffle_id}/{start_date}/{start_hour}', [RaffleController::class, 'setStart']);
-        Route::post('endRaffle/{raffle_id}/{end_date}/{end_hour}', [RaffleController::class, 'endRaffle']);
+        Route::post('setStart', [RaffleController::class, 'setStart']);
+        Route::post('endRaffle', [RaffleController::class, 'endRaffle']);
         Route::post('scheduler/toggle',  [RaffleController::class, 'schedulerToggle']);
         Route::post('scheduler/trigger', [RaffleController::class, 'schedulerTrigger']);
         Route::post('scheduler/config',  [RaffleController::class, 'schedulerConfig']);
@@ -224,7 +227,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 // ============================================
 // RUTAS ADMIN - DEPÓSITOS
 // ============================================
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+// Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 
     Route::prefix('admin/deposits')->middleware(['auth:sanctum', 'admin'])->group(function () {
         Route::get('/', [DepositRequestController::class, 'index']);
@@ -236,7 +239,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         Route::post('/{id}/reject', [DepositRequestController::class, 'reject']);
         Route::post('/{id}/complete', [DepositRequestController::class, 'complete']);
     });
-});
+// });
 
 // ============================================
 // BUSCAR USUARIOS (Admin)

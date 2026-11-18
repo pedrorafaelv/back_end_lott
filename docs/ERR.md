@@ -21,7 +21,7 @@ Código HTTP	Código Interno (Ejemplo)	Significado (Español)	Descripción / Cu�
 500 ERR-020 Fallo inesperado   Ha ocurrido un error mientras se cancelaba la jugada
 404 ERR-021 no hay cartones     No se encontraron cartones 
 404 ERR-022 grupo de fichas no encontrado  no se ha encontrado un grupo de fichas 
-404 ERR-023 No hay fichas                          no se ha encontrado fichas para este grupo de fichas  
+404 ERR-023 No hay fichas                  no se ha encontrado fichas para este grupo de fichas  
 409 ERR-024 Sorteo terminado por linea     Raffle already has a line winner and has ended
 409 ERR-025 Sorteo terminado full   Raffle already has a full winner and has ended
 409 ERR-026 NoPrizes enabled        Raffle has no prizes enabled (reward_line and reward_full are disabled)
@@ -31,7 +31,7 @@ Código HTTP	Código Interno (Ejemplo)	Significado (Español)	Descripción / Cu�
 409 ERR-030 Account not be updated  The card was added to the raffle, but account could not be updated.
 422 ERR-031 Card not available      The card is not available for the raffle
 404 ERR-032 User not Found          The User was not found
-404 ERR-033
+404 ERR-033 Fichas not found        not found fichas for this raffle
 401 ERR-034 haven´t permissionsof raffle   The User haven´t Permissions over the Raffle  
 409 ERR-035 Error to create Raffle    Error to create Raffle, Raffle(s) in progress'
 ERR-036
