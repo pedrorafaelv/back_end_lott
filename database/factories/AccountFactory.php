@@ -14,7 +14,7 @@ class AccountFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'currency_code' => $this->faker->randomElement(['USD', 'EUR', 'VES', 'CLP']),
+            'currency_id' => $this->faker->randomElement([1, 2, 3, 4]),
             'amount' => $this->faker->randomFloat(2, 0, 10000),
             'credit' => $this->faker->randomFloat(2, 0, 5000),
             'credit_promotion' => $this->faker->randomFloat(2, 0, 1000),

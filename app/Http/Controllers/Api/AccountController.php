@@ -12,6 +12,8 @@ use App\Models\DepositRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log; 
+
 
 class AccountController extends Controller
 {
@@ -595,35 +597,49 @@ class AccountController extends Controller
 
     private function calculateBalance($userId, $currency)
     {
-        $amount = DB::table('accounts')
+        $query = DB::table('accounts')
             ->where('user_id', $userId)
             ->where('currency_id', $currency)
-            ->sum('amount');
+            ->whereIn('reference_type', ['credit', 'debit'])
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN reference_type = 'credit' THEN amount ELSE 0 END), 0)
+            - COALESCE(SUM(CASE WHEN reference_type = 'debit'  THEN amount ELSE 0 END), 0)
+                AS balance
+            ");
+              Log::info('query en calculateBalance =', [
+                    'sql'            => $query->toSql(),
+                    'bindings'       => $query->getBindings(),
+                ]);
+                
+            $balance= $query->value('balance');
+
+        $balance = (float) $balance;
 
         $promo = DB::table('accounts')
             ->where('user_id', $userId)
             ->where('currency_id', $currency)
             ->sum('credit_promotion');
 
+
         $debits = DB::table('accounts')
                      ->leftJoin('vias', 'vias.id', '=', 'accounts.via_id')
-                     ->where('accounts.user_id', $user_id)
+                     ->where('accounts.user_id', $userId)
                      ->where('accounts.currency_id', $currency)
                      ->where ('vias.type','debit')
                      ->sum('amount');
                      
         $credits = DB::table('accounts')
                      ->leftJoin('vias', 'vias.id', '=', 'accounts.via_id')
-                     ->where('accounts.user_id', $user_id)
+                     ->where('accounts.user_id', $userId)
                      ->where('accounts.currency_id', $currency)
                      ->where ('vias.type','debit')
                      ->sum('amount');;
 
         return [
             'currency_id' => $currency,
-            'amount' => round($amount ?? 0, 2),
+            'amount' => round($balance ?? 0, 2),
             'credit_promotion' => round($promo ?? 0, 2),
-            'total' => round(($amount ?? 0) + ($promo ?? 0), 2),
+            'total' => round(($balance ?? 0) + ($promo ?? 0), 2),
             'debits'=>$debits,
             'credits'=>$credits
         ];
@@ -828,7 +844,7 @@ public function myDeposits(Request $request)
  */
  public function getTotals(request $Request){
       
-  $totals = DB::table('accounts')
+  $query = DB::table('accounts')
             ->leftJoin('vias', 'accounts.via_id', '=', 'vias.id')
             ->where('accounts.user_id', $Request->user_id)
             ->where('accounts.currency_id', $Request->currency_id)
@@ -838,12 +854,16 @@ public function myDeposits(Request $request)
                 DB::raw("SUM(CASE WHEN vias.code = 'bet' THEN accounts.withdrawal ELSE 0 END) as bets"),
                 DB::raw("SUM(CASE WHEN vias.code = 'award' THEN accounts.amount ELSE 0 END) as awards"),
                 DB::raw("SUM(CASE WHEN vias.code = 'promotion' THEN accounts.credit_promotion ELSE 0 END) as promotions"),
-                DB::raw("SUM(CASE WHEN vias.type = 'debit' THEN accounts.credit_promotion ELSE 0 END) as promotions"),
-                DB::raw("SUM(CASE WHEN vias.type = 'cerdit' THEN accounts.credit_promotion ELSE 0 END) as promotions")
-
-            )
-            ->first();
-
+                DB::raw("SUM(CASE WHEN accounts.reference_type = 'debit' THEN accounts.amount ELSE 0 END) as debits"),
+                DB::raw("SUM(CASE WHEN accounts.reference_type = 'credit' THEN accounts.amount ELSE 0 END) as credits")
+            );
+            
+            Log::info('getTotals', [
+                    'sql'            => $query->toSql(),
+                    'bindings'       => $query->getBindings(),
+                ]);
+                
+               $totals=  $query->first();
         if (!$totals){
             return response()->json(['success'=>false,
                             'error'=> true,
@@ -852,6 +872,7 @@ public function myDeposits(Request $request)
                             'data'=> null],401);
         }    
 
+        $availableAmount = $totals->credits - $totals->debits;
         return response()->json([ 
             'success'=>true,
             'error'=>false,
@@ -865,6 +886,7 @@ public function myDeposits(Request $request)
                 'promotions' => round($totals->promotions ?? 0, 2),
                 'debits'=>round($totals->debits ?? 0, 2),
                 'credits'=>round($totals->credits ?? 0, 2),
+                'available_amount'=>round($availableAmount ?? 0,2),
                 ]
         ],200);
 

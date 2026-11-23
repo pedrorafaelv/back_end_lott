@@ -8,6 +8,7 @@ use Database\Seeders\Cardseeder;
 use Database\Seeders\ViaSeeder;
 use Database\Seeders\LevelSeeder;
 use Database\Seeders\LevelUserSeeder;
+use Database\Seeders\GroupFichaSeeder;
 
 
 class DatabaseSeeder extends Seeder
@@ -20,18 +21,19 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
-            // UserSeeder::class,
-                    AccountsSeeder::class,
-                    GroupSeeder::class,
-                    GroupUserSeeder::class,
-                    RaffleSeeder::class,
-                    FichaSeeder::class,
-                    FichaGroupFichaSeeder::class,
-                    CardSeeder::class,
-                    ViasSeeder::class,
-                    WithdrawalRequestSeeder::class,
-                    WithdrawalLogSeeder::class,
-                    levelSeeder::class,
-                    levelUserSeeder::class,]);
+            ViaSeeder::class,
+            levelSeeder::class,
+            GroupFichaSeeder::class,
+            UserSeeder::class,
+            GroupSeeder::class,
+            FichaSeeder::class,
+            FichaGroupFichaSeeder::class,
+            CardSeeder::class,
+            AccountsSeeder::class,
+            GroupUserSeeder::class,
+            // RaffleSeeder::class,
+            WithdrawalRequestSeeder::class,
+            WithdrawalLogSeeder::class,
+            levelUserSeeder::class,]);
     }
 }

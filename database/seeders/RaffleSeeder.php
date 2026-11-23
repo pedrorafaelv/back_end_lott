@@ -19,28 +19,28 @@ class RaffleSeeder extends Seeder
         DB::table('raffles')->insert([
     [
         'name' => 'Test público 1h',
-        'user_id' => 4, 'group_id' => 1, 'groupficha_id' => 1,
+        'user_id' => 140, 'group_id' => 1, 'groupficha_id' => 1,
         'privacy' => 0, 'scheduled_date' => now()->addHour(),
         'time_zone' => 'America/Caracas', 'total_amount' => 1000, 'card_amount' => 10,
         'start_date' => now(), 'end_date' => null,
     ],
     [
         'name' => 'Test público +12h',
-        'user_id' => 4, 'group_id' => 1, 'groupficha_id' => 1,
+        'user_id' => 140, 'group_id' => 1, 'groupficha_id' => 1,
         'privacy' => 0, 'scheduled_date' => now()->addHours(12),
         'time_zone' => 'America/Caracas', 'total_amount' => 1000, 'card_amount' => 10,
         'start_date' => now(), 'end_date' => null,
     ],
     [
         'name' => 'Test privado grupo +3d',
-        'user_id' => 4, 'group_id' => 1, 'groupficha_id' => 1,
+        'user_id' => 150, 'group_id' => 1, 'groupficha_id' => 1,
         'privacy' => 1, 'scheduled_date' => now()->addDays(3),
         'time_zone' => 'America/Caracas', 'total_amount' => 1000, 'card_amount' => 10,
         'start_date' => now(), 'end_date' => null,
     ],
     [
         'name' => 'Test futuro +5d',
-        'user_id' => 4, 'group_id' => 1, 'groupficha_id' => 1,
+        'user_id' => 160, 'group_id' => 1, 'groupficha_id' => 1,
         'privacy' => 0, 'scheduled_date' => now()->addDays(5),
         'time_zone' => 'America/Caracas', 'total_amount' => 1000, 'card_amount' => 10,
         'start_date' => now(), 'end_date' => null,

@@ -16,8 +16,8 @@ class CardSeeder extends Seeder
             \App\Models\Card::truncate();
 
             // Ajusta el groupFicha_id y el count que quieras sembrar.
-            $groupFichaId = 1;
-            $count        = 500;
+            $groupFichaId = 2;
+            $count        = 20;
             // GroupFicha::where('status',1)->each(fn($g) => $service->generateForGroupFicha($g->id, 500));
 
             $result = $service->generateForGroupFicha($groupFichaId, $count);

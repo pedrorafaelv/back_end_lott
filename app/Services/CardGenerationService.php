@@ -114,9 +114,10 @@ class CardGenerationService
             foreach ($rows as $i => $row) {
                 $cardId = $firstId + $i;
                 foreach (range(1, 25) as $pos) {
+                    $key = 'pos' . str_pad((string) $pos, 2, '0', STR_PAD_LEFT); // pos01..pos25
                     $pivot[] = [
                         'card_id'    => $cardId,
-                        'ficha_id'   => $row["pos{$pos}"],
+                        'ficha_id'   => $row[$key],   // ✅ coincide con buildCardRow
                         'posicion'   => $pos,
                         'created_at' => $ts,
                         'updated_at' => $ts,

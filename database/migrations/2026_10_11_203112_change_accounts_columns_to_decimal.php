@@ -10,7 +10,13 @@ return new class extends Migration
     {
         Schema::table('accounts', function (Blueprint $table) {
             // Cambiar de int(11) a decimal(12,2)
-            $table->decimal('deposit', 12, 2)->nullable()->change();
+             if (!Schema::hasColumn('accounts', 'deposit')) {
+                $table->decimal('deposit', 12, 2)->nullable();
+            }else{
+                $table->decimal('deposit', 12, 2)->nullable()->change();
+
+            }
+            
             $table->decimal('withdrawal', 12, 2)->nullable()->change();
 
             // Ampliar amount de decimal(8,2) a decimal(12,2)
